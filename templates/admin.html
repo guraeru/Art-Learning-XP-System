@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block title %}管理コンソール{% endblock %}
+
+{% block content %}
+    <h2 class="mb-4">🛠️ 管理コンソール</h2>
+    <p class="lead text-secondary">書籍データや外部リソースリンク、ユーザー設定の管理を行います。</p>
+
+    <div class="tabs mb-4">
+        <button class="tab-button btn-primary" data-tab="book-management">📚 書籍管理</button>
+        <button class="tab-button btn-secondary" data-tab="link-management">🔗 外部リンク管理</button>
+        <button class="tab-button btn-secondary" data-tab="user-management">👤 ユーザー設定</button>
+    </div>
+
+    <div id="tab-book-management" class="tab-content card">
+        <h3 class="card-title">書籍データの新規登録・編集</h3>
+        
+        <form action="{{ url_for('book_process') }}" method="POST" enctype="multipart/form-data" class="form-grid">
+            <input type="hidden" name="id" id="book_id">
+
+            <div class="form-group">
+                <label for="book_title">タイトル (必須):</label>
+                <input type="text" name="title" id="book_title" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="book_author">著者/サークル名:</label>
+                <input type="text" name="author" id="book_author">
+            </div>
+
+            <div class="form-group">
+                <label for="pdf_file">デジタル書籍ファイル (PDF/ePub):</label>
+                <input type="file" name="pdf_file" id="pdf_file" accept=".pdf, .epub">
+                <p class="small text-muted mt-1">※ PDFをアップロードすると、1ページ目から表紙を自動生成します。</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="cover_image">表紙画像 (任意):</label>
+                <input type="file" name="cover_image" id="cover_image" accept=".png, .jpg, .jpeg">
+                <p class="small text-muted mt-1">※ 自動生成を上書きする場合のみ使用。</p>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="book_description">書籍説明/備考:</label>
+                <textarea name="description" id="book_description" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group full-width text-end">
+                <button type="submit" class="btn-primary" id="book-submit-btn">
+                    <i class="fas fa-plus"></i> 書籍を登録
+                </button>
+                <button type="button" class="btn-secondary" id="book-clear-btn" style="display: none;">
+                    <i class="fas fa-times"></i> キャンセル
+                </button>
+            </div>
+        </form>
+
+        <h3 class="card-title mt-5">登録済み書籍一覧</h3>
+        
+        <table class="table-list modern-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>タイトル</th>
+                    <th>著者</th>
+                    <th>ファイル名</th>
+                    <th style="width: 180px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for book in books %}
+                <tr data-book-id="{{ book.id }}"
+                    data-title="{{ book.title }}"
+                    data-author="{{ book.author | default('') }}"
+                    data-description="{{ book.description | default('') }}"
+                    data-pdf="{{ book.pdf_file_path }}"
+                    data-cover="{{ book.cover_image_path }}">
+                    <td>{{ book.id }}</td>
+                    <td class="table-title">{{ book.title }}</td>
+                    <td>{{ book.author | default('-') }}</td>
+                    <td>
+                        <a href="{{ url_for('uploaded_file', filename=book.pdf_file_path.split('/')[-1].split('\\')[-1]) }}" 
+                           target="_blank" rel="noopener noreferrer" class="text-link">
+                            {{ book.pdf_file_path.split('/')[-1].split('\\')[-1] | truncate(20, True, '...') }}
+                        </a>
+                    </td>
+                    <td>
+                        <button class="btn-secondary btn-sm edit-book-btn" type="button">
+                            <i class="fas fa-pen"></i> 編集
+                        </button>
+                        <form action="{{ url_for('delete_book', id=book.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('本当に書籍「{{ book.title }}」を削除しますか？');">
+                            <button class="btn-danger btn-sm" type="submit">
+                                <i class="fas fa-trash"></i> 削除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center">まだ書籍は登録されていません。</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="tab-link-management" class="tab-content card" style="display: none;">
+        <h3 class="card-title">外部リンクの新規登録・編集</h3>
+        
+        <form action="{{ url_for('link_process') }}" method="POST" class="form-grid">
+            <input type="hidden" name="id" id="link_id">
+
+            <div class="form-group">
+                <label for="link_name">サイト名 (必須):</label>
+                <input type="text" name="name" id="link_name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="link_url">URL (必須):</label>
+                <input type="url" name="url" id="link_url" required placeholder="https://example.com">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="link_description">説明/用途 (任意):</label>
+                <textarea name="description" id="link_description" rows="2"></textarea>
+            </div>
+
+            <div class="form-group full-width text-end">
+                <button type="submit" class="btn-primary" id="link-submit-btn">
+                    <i class="fas fa-plus"></i> リンクを登録
+                </button>
+                <button type="button" class="btn-secondary" id="link-clear-btn" style="display: none;">
+                    <i class="fas fa-times"></i> キャンセル
+                </button>
+            </div>
+        </form>
+
+        <h3 class="card-title mt-5">登録済み外部リンク一覧</h3>
+        
+        <table class="table-list modern-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>サイト名</th>
+                    <th>URL</th>
+                    <th>説明</th>
+                    <th style="width: 180px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for link in links %}
+                <tr data-link-id="{{ link.id }}"
+                    data-name="{{ link.name }}"
+                    data-url="{{ link.url }}"
+                    data-description="{{ link.description | default('') }}">
+                    <td>{{ link.id }}</td>
+                    <td class="table-title">{{ link.name }}</td>
+                    <td>
+                        <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="text-link">
+                            {{ link.url | truncate(35, True, '...') }}
+                        </a>
+                    </td>
+                    <td>{{ link.description | default('-') | truncate(20, True, '...') }}</td>
+                    <td>
+                        <button class="btn-secondary btn-sm edit-link-btn" type="button">
+                            <i class="fas fa-pen"></i> 編集
+                        </button>
+                        <form action="{{ url_for('delete_link', id=link.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('本当にリンク「{{ link.name }}」を削除しますか？');">
+                            <button class="btn-danger btn-sm" type="submit">
+                                <i class="fas fa-trash"></i> 削除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center">まだ外部リンクは登録されていません。</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div id="tab-user-management" class="tab-content card" style="display: none;">
+        <h3 class="card-title">ユーザー名の変更</h3>
+        <form action="{{ url_for('update_username') }}" method="POST">
+            <div class="form-group full-width">
+                <label for="new_username">新しいユーザー名:</label>
+                <input type="text" name="new_username" id="new_username" value="{{ status.username }}" required>
+            </div>
+            <button type="submit" class="btn-primary">
+                <i class="fas fa-user-edit"></i> ユーザー名を更新
+            </button>
+        </form>
+
+        <h3 class="card-title mt-5">データのリセット</h3>
+        <p class="text-danger">⚠️ **警告**: この操作はすべての学習記録とリソースを消去し、元に戻せません。</p>
+        <form action="{{ url_for('reset_data') }}" method="POST" onsubmit="return confirm('本当にすべてのデータをリセットしますか？この操作は取り消せません。');">
+            <button type="submit" class="btn-danger">
+                <i class="fas fa-radiation"></i> 全データリセット
+            </button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- 1. タブ切り替え機能 ---
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            function switchTab(targetTabId) {
+                tabContents.forEach(content => {
+                    content.style.display = 'none';
+                });
+                tabButtons.forEach(button => {
+                    // btn-primary と btn-secondary の切り替えを強化
+                    if (`tab-${button.getAttribute('data-tab')}` === targetTabId) {
+                         button.classList.replace('btn-secondary', 'btn-primary');
+                    } else {
+                         button.classList.replace('btn-primary', 'btn-secondary');
+                    }
+                });
+
+                const targetContent = document.getElementById(targetTabId);
+                if (targetContent) {
+                    targetContent.style.display = 'block';
+                }
+            }
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTabId = `tab-${this.getAttribute('data-tab')}`;
+                    switchTab(targetTabId);
+                });
+            });
+
+            // URLのフラグメント（例: #tab-link-management）に基づいて初期タブを決定
+            const hash = window.location.hash.replace('#', '');
+            if (hash && hash.startsWith('tab-')) {
+                switchTab(hash);
+            } else {
+                // 初期表示: 書籍管理タブ
+                switchTab('tab-book-management');
+            }
+
+
+            // --- 2. 書籍編集機能 ---
+            const bookForm = document.querySelector('#tab-book-management form');
+            const bookSubmitBtn = document.getElementById('book-submit-btn');
+            const bookClearBtn = document.getElementById('book-clear-btn');
+
+            document.querySelectorAll('.edit-book-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tr = this.closest('tr');
+                    document.getElementById('book_id').value = tr.dataset.bookId;
+                    document.getElementById('book_title').value = tr.dataset.title;
+                    document.getElementById('book_author').value = tr.dataset.author;
+                    document.getElementById('book_description').value = tr.dataset.description;
+                    
+                    // ファイル入力欄はセキュリティ上の理由で値を設定できないためクリア
+                    document.getElementById('pdf_file').value = '';
+                    document.getElementById('cover_image').value = '';
+                    
+                    bookSubmitBtn.innerHTML = '<i class="fas fa-save"></i> 書籍を更新';
+                    bookSubmitBtn.classList.replace('btn-primary', 'btn-secondary');
+                    bookClearBtn.style.display = 'inline-flex';
+                    
+                    // フォームへスクロール
+                    bookForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
+            
+            bookClearBtn.addEventListener('click', function() {
+                bookForm.reset();
+                document.getElementById('book_id').value = '';
+                bookSubmitBtn.innerHTML = '<i class="fas fa-plus"></i> 書籍を登録';
+                bookSubmitBtn.classList.replace('btn-secondary', 'btn-primary');
+                bookClearBtn.style.display = 'none';
+            });
+            
+            // --- 3. リンク編集機能 ---
+            const linkForm = document.querySelector('#tab-link-management form');
+            const linkSubmitBtn = document.getElementById('link-submit-btn');
+            const linkClearBtn = document.getElementById('link-clear-btn');
+
+            document.querySelectorAll('.edit-link-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tr = this.closest('tr');
+                    document.getElementById('link_id').value = tr.dataset.linkId;
+                    document.getElementById('link_name').value = tr.dataset.name;
+                    document.getElementById('link_url').value = tr.dataset.url;
+                    document.getElementById('link_description').value = tr.dataset.description;
+                    
+                    linkSubmitBtn.innerHTML = '<i class="fas fa-save"></i> リンクを更新';
+                    linkSubmitBtn.classList.replace('btn-primary', 'btn-secondary');
+                    linkClearBtn.style.display = 'inline-flex';
+                    
+                    // フォームへスクロール
+                    linkForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
+            
+            linkClearBtn.addEventListener('click', function() {
+                linkForm.reset();
+                document.getElementById('link_id').value = '';
+                linkSubmitBtn.innerHTML = '<i class="fas fa-plus"></i> リンクを登録';
+                linkSubmitBtn.classList.replace('btn-secondary', 'btn-primary');
+                linkClearBtn.style.display = 'none';
+            });
+        });
+    </script>
+    
+    <style>
+        /* 管理コンソール専用のCSS調整 */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .form-group {
+            margin-bottom: 0; 
+        }
+        .form-group.full-width {
+            grid-column: span 2; 
+        }
+        
+        /* 💡 モダンなテーブルスタイル */
+        .modern-table {
+            border-collapse: separate;
+            border-spacing: 0 10px; /* 行間に隙間を作る */
+            width: 100%;
+        }
+        
+        .modern-table thead th {
+            font-size: 0.9rem;
+            color: #777;
+            padding: 10px 15px;
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .modern-table tbody tr {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: box-shadow 0.2s, background-color 0.2s;
+        }
+
+        .modern-table tbody tr:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #f9f9f9;
+        }
+        
+        .modern-table td {
+            font-size: 0.85rem;
+            padding: 15px;
+            vertical-align: middle;
+            /* 行の角を丸く見せるための調整 */
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+        }
+        
+        /* 最初のセルと最後のセルの角を丸くする */
+        .modern-table tbody tr:first-child td { border-top: none; }
+        .modern-table tbody tr:last-child td { border-bottom: none; }
+        .modern-table td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+        .modern-table td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+        .modern-table .table-title {
+            font-weight: 600;
+        }
+        
+        .modern-table .text-link {
+             color: var(--accent-color);
+             text-decoration: none;
+        }
+        .modern-table .text-link:hover {
+             text-decoration: underline;
+        }
+        
+        /* 💡 編集・削除ボタンのスタイル調整 */
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            line-height: 1;
+            margin-left: 5px;
+            display: inline-flex; /* アイコンとテキストを中央揃え */
+            align-items: center;
+            gap: 5px; /* アイコンとテキストの間のスペース */
+        }
+        
+        /* モバイル対応: 1カラムに切り替え */
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-group.full-width {
+                grid-column: span 1;
+            }
+            /* モバイルでは操作ボタンを縦に並べる */
+            .modern-table td:last-child {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .modern-table .btn-sm {
+                margin: 0;
+            }
+        }
+    </style>
+{% endblock %}

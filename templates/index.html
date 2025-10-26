@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}メインダッシュボード{% endblock %}
+
+{% block content %}
+    <h2>{{ status.username }} のステータス</h2>
+    <div class="card status-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+        <div class="status-item">
+            <h4>現在のランク</h4>
+            <div class="xp-display">R{{ status.rank }}</div>
+            <div class="rank-title">{{ status.title }}</div>
+        </div>
+        <div class="status-item">
+            <h4>累計XP</h4>
+            <div class="xp-display">{{ "{:,.0f}".format(status.total_xp) }} XP</div>
+        </div>
+        <div class="status-item">
+            <h4>次ランク (R{{ status.rank + 1 }}) まで</h4>
+            <div class="xp-display">{{ "{:,.0f}".format(status.xp_to_next_rank) }} XP</div>
+                {% set total_needed = status.next_xp_goal - status.xp_start_of_current_level %}
+                {% set current_progress = status.total_xp - status.xp_start_of_current_level %}
+                {% set percent = (current_progress / total_needed) * 100 if total_needed > 0 else 100 %}
+                <div style="background-color: #ddd; height: 20px; border-radius: 10px; overflow: hidden;">
+                <div style="--progress-width: {{ percent | round(1) }}%; background-color: var(--accent-color); height: 100%; width: var(--progress-width);">
+                </div>
+            </div>
+            <div class="rank-title">（目標: {{ "{:,.0f}".format(status.next_xp_goal) }} XP）</div>
+        </div>
+        <div class="status-item">
+            <h4>累計学習時間</h4>
+            <div class="xp-display">{{ status.total_time_hours }} 時間</div>
+            <div class="rank-title">{{ status.total_time_minutes % 60 }} 分</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+        
+        <div class="card">
+            <h3>時間学習の記録</h3>
+            
+            <div id="timer-box" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; text-align: center;">
+                <h4>タイムウォッチ (ブラウザ永続化)</h4>
+                <div id="timer-display" style="font-size: 2.5em; font-weight: bold; color: var(--accent-color); margin: 10px 0;">00:00:00</div>
+                <div style="display: flex; justify-content: space-around;">
+                    <button type="button" id="start-btn" class="btn-primary" style="flex: 1; margin-right: 5px;">開始</button>
+                    <button type="button" id="stop-btn" class="btn-secondary" style="flex: 1; margin-right: 5px;" disabled>停止＆記録</button>
+                    <button type="button" id="reset-btn" class="btn-secondary" style="flex: 1;" disabled>リセット</button>
+                </div>
+            </div>
+            <form action="{{ url_for('log_time') }}" method="POST" id="log-time-form">
+                <div class="form-group">
+                    <label for="activity_type">活動タイプ:</label>
+                    <select name="activity_type" id="activity_type" class="form-control">
+                        {% for type, rate in xp_rates.items() %}
+                            <option value="{{ type }}">{{ type }} ({{ rate }} XP/分)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="duration">時間 (分):</label>
+                    <input type="number" name="duration" id="duration" class="form-control" required min="1" value="60">
+                </div>
+                <div class="form-group">
+                    <label for="time_description">内容メモ:</label>
+                    <input type="text" name="description" id="time_description" class="form-control" placeholder="例: 顔のパーツ練習、色調補正の勉強">
+                </div>
+                <button type="submit" id="log-time-submit-btn" class="btn-primary" style="width: 100%;">手動で記録 (＋XP)</button>
+            </form>
+        </div>
+        <div class="card">
+            <h3>科目習得の記録 (作品アップロード)</h3>
+            <form action="{{ url_for('log_acquisition') }}" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="technique_type">技法タイプ:</label>
+                    <select name="technique_type" id="technique_type" class="form-control">
+                        {% for type, base_xp in acq_types.items() %}
+                            <option value="{{ type }}">{{ type }} (ベースXP: {{ "{:,.0f}".format(base_xp) }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label for="evaluation">自己評価:</label>
+                        <select name="evaluation" id="evaluation" class="form-control" required>
+                            {% for eval, score in evaluations.items()|sort(attribute='1', reverse=True) %}
+                                <option value="{{ eval }}">{{ eval }} (スコア: {{ score }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="flex: 3;">
+                        <label for="image_proof">証拠画像 (PNG, JPG, GIF):</label>
+                        <input type="file" name="image_proof" id="image_proof" class="form-control" required accept="image/*">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="acq_description">作品/技法の詳細:</label>
+                    <input type="text" name="description" id="acq_description" class="form-control" placeholder="例: 遠近法のパース練習、新ツールの習得">
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%;">科目習得を記録 (＋XP)</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-top: 30px;">
+        <h3>🔗 おすすめ学習リソース (外部リンク)</h3>
+        
+        {% if recent_links %}
+            <ul class="resource-list" style="list-style: none; padding: 0;">
+                {% for link in recent_links %}
+                    <li style="margin-bottom: 10px; border-bottom: 1px dashed var(--border-color); padding-bottom: 10px;">
+                        <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" style="font-weight: bold; color: var(--accent-color);">
+                             {{ link.name }}
+                        </a>
+                        <p style="margin: 5px 0 0; font-size: 0.9em; color: #666;">{{ link.description }}</p>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>現在、おすすめのリソースは登録されていません。</p>
+        {% endif %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const display = document.getElementById('timer-display');
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const logTimeForm = document.getElementById('log-time-form');
+            const durationInput = document.getElementById('duration');
+            const descriptionInput = document.getElementById('time_description');
+            const logTimeSubmitBtn = document.getElementById('log-time-submit-btn');
+
+            // --- LocalStorage キー ---
+            const LS_RUNNING = 'timerIsRunning';
+            const LS_START_TIME = 'timerStartTime';
+            
+            // --- 状態変数 ---
+            let timerInterval = null;
+            let isRunning = localStorage.getItem(LS_RUNNING) === 'true';
+            let startTime = parseInt(localStorage.getItem(LS_START_TIME) || '0');
+            
+            // ----------------------------------------------------
+            
+            // ヘルパー関数: フォームコントロールの有効/無効を切り替える
+            function toggleTimeForm(disabled) {
+                durationInput.disabled = disabled;
+                descriptionInput.disabled = disabled;
+                logTimeSubmitBtn.disabled = disabled;
+                
+                if (disabled) {
+                    logTimeSubmitBtn.textContent = 'タイマー動作中 (手動記録不可)';
+                    logTimeSubmitBtn.classList.remove('btn-primary');
+                    logTimeSubmitBtn.classList.add('btn-secondary');
+                } else {
+                    logTimeSubmitBtn.textContent = '手動で記録 (＋XP)';
+                    logTimeSubmitBtn.classList.remove('btn-secondary');
+                    logTimeSubmitBtn.classList.add('btn-primary');
+                }
+            }
+            
+            // ヘルパー関数: 経過時間（ミリ秒）を計算
+            function getElapsedTime() {
+                if (isRunning && startTime > 0) {
+                    return Date.now() - startTime;
+                }
+                return 0; 
+            }
+
+            // ヘルパー関数: タイマー表示を更新
+            function updateDisplay() {
+                const elapsedMs = getElapsedTime();
+                const totalSeconds = Math.floor(elapsedMs / 1000);
+                const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+                const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+                const seconds = String(totalSeconds % 60).padStart(2, '0');
+                display.textContent = `${hours}:${minutes}:${seconds}`;
+            }
+            
+            // ヘルパー関数: UIの状態をLocalStorageの状態に同期させる
+            function syncUI() {
+                toggleTimeForm(isRunning);
+                startBtn.disabled = isRunning;
+                stopBtn.disabled = !isRunning;
+                resetBtn.disabled = !isRunning;
+                
+                if (isRunning) {
+                    // タイマーが動作していればインターバルを開始
+                    if (!timerInterval) {
+                        timerInterval = setInterval(updateDisplay, 1000);
+                    }
+                } else {
+                    // 停止していればインターバルをクリア
+                    if (timerInterval) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                    }
+                    // 停止時は表示をリセット
+                    if (startTime === 0) {
+                        display.textContent = "00:00:00";
+                    }
+                }
+                updateDisplay(); // 即座に更新
+            }
+            // ----------------------------------------------------
+
+            // 開始ボタンの処理: LocalStorageに開始時刻を記録
+            startBtn.addEventListener('click', function() {
+                if (isRunning) return; 
+
+                isRunning = true;
+                startTime = Date.now();
+                
+                // LocalStorageに状態を保存
+                localStorage.setItem(LS_RUNNING, 'true');
+                localStorage.setItem(LS_START_TIME, startTime);
+                
+                syncUI();
+                // 開始時のalertは非表示
+            });
+
+            // 停止＆記録ボタンの処理: 経過時間を計算し、フォーム送信
+            stopBtn.addEventListener('click', function() {
+                if (!isRunning) return;
+
+                const elapsedMs = getElapsedTime();
+                
+                // 経過時間 (分数) を計算し、フォームにセット (最小1分を保証)
+                const totalMinutes = Math.max(1, Math.round(elapsedMs / 1000 / 60)); 
+
+                // フォームの値をセット
+                durationInput.value = totalMinutes;
+                descriptionInput.value = descriptionInput.value || `タイムウォッチで記録: ${totalMinutes} 分間の学習`;
+                
+                // LocalStorageと状態変数をリセット
+                isRunning = false;
+                startTime = 0;
+                localStorage.removeItem(LS_RUNNING);
+                localStorage.removeItem(LS_START_TIME);
+                
+                syncUI();
+                
+                // 記録フォームを自動送信
+                logTimeForm.submit();
+                // 停止時は完了通知
+                alert(`✅ タイムウォッチを停止し、${totalMinutes} 分の学習を記録しました！`); 
+            });
+
+            // リセットボタンの処理: LocalStorageと状態変数をリセット
+            resetBtn.addEventListener('click', function() {
+                // リセット時のconfirmは維持
+                if (!confirm('⚠️ 本当にタイマーをリセットしますか？計測中の時間は失われます。')) {
+                    return;
+                }
+                
+                // LocalStorageと状態変数をリセット
+                isRunning = false;
+                startTime = 0;
+                localStorage.removeItem(LS_RUNNING);
+                localStorage.removeItem(LS_START_TIME);
+
+                syncUI();
+                
+                // 手動入力フォームのデフォルト値に戻す
+                durationInput.value = 60;
+                descriptionInput.value = '';
+            });
+            
+            // ページロード時の初期化
+            syncUI();
+        });
+    </script>
+{% endblock %}

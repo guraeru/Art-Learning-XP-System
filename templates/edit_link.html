@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}リンク編集 - {{ link.title }}{% endblock %}
+
+{% block content %}
+    <h2>✏️ リンクの編集: {{ link.title }}</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" style="color: {{ 'white' if category == 'success' else '#dc3545' }}; background-color: {{ '#28a745' if category == 'success' else '#f8d7da' }}; padding: 10px; margin-bottom: 15px; border-radius: 5px;">
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <form method="POST" action="{{ url_for('edit_link', link_id=link.id) }}" style="padding: 15px;">
+            <label for="link_title">サイト名（必須）</label>
+            <input type="text" id="link_title" name="link_title" value="{{ link.title }}" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+            
+            <label for="link_url">URL（必須）</label>
+            <input type="url" id="link_url" name="link_url" value="{{ link.url }}" required style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+            
+            <label for="link_category">カテゴリ</label>
+            <input type="text" id="link_category" name="link_category" value="{{ link.category }}" placeholder="例: 構図, チュートリアル" style="width: 100%; padding: 8px; margin-bottom: 15px; box-sizing: border-box;">
+            
+            <label for="link_description">簡単な説明</label>
+            <textarea id="link_description" name="link_description" style="width: 100%; padding: 8px; margin-bottom: 20px; box-sizing: border-box; height: 100px;">{{ link.description | default('', true) }}</textarea>
+            
+            <button type="submit" class="btn-primary" style="width: 100%; padding: 10px;">変更を保存</button>
+        </form>
+        
+        <a href="{{ url_for('resources') }}" style="display: block; text-align: center; margin-top: 15px;">&lt; リソース・本棚に戻る</a>
+    </div>
+    
+{% endblock %}

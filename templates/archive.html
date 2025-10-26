@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}学習履歴アーカイブ{% endblock %}
+
+{% block content %}
+    <h2>学習履歴アーカイブ</h2>
+
+    <div class="card" style="margin-bottom: 30px;">
+        <h3>📊 累積学習時間分析</h3>
+        <div style="margin-bottom: 15px;">
+            <button class="btn-primary" id="btn-show-month">月別累積表示</button>
+            <button class="btn-primary" id="btn-show-year">年別累積表示</button>
+        </div>
+        <canvas id="timeAnalysisChart" style="max-height: 400px;"></canvas>
+    </div>
+    
+    <p>過去の学習記録と完成作品を年度別に閲覧できます。各記録をクリックすると詳細が表示されます。</p>
+
+    {% if not sorted_years %}
+        <p>まだ記録がありません。</p>
+    {% else %}
+        {% for year in sorted_years %}
+            <div class="archive-section card">
+                <h3>📅 {{ year }} 年の記録</h3>
+                {% for record in archive_data[year] %}
+                    <div class="record-entry view-detail" data-id="{{ record.id }}" 
+                         data-type="{{ record.type }}"
+                         data-subtype="{{ record.subtype }}"
+                         data-date="{{ record.date.strftime('%Y-%m-%d %H:%M') }}"
+                         data-description="{{ record.description | default('', true) }}"
+                         data-xp="{{ "{:,.0f}".format(record.xp_gained) }}"
+                         data-evaluation="{{ record.evaluation | default('', true) }}"
+                         data-duration="{{ record.duration_minutes | default(0) }}"
+                         data-image-url="{% if record.image_path %}{{ url_for('static', filename=record.image_path.split('/', 1)[1]) }}{% endif %}">
+                        
+                        {% if record.image_path %}
+                            <img src="{{ url_for('static', filename=record.image_path.split('/', 1)[1]) }}" alt="作品画像" loading="lazy">
+                        {% endif %}
+                        <div class="record-details">
+                            <strong>[{{ record.type }}]</strong> {{ record.subtype }}
+                            <small style="color: #666;">（{{ record.date.strftime('%Y-%m-%d') }}）</small>
+                            <p style="margin: 5px 0 0 0;">{{ record.description | default('メモなし', true) | truncate(50) }}</p>
+                        </div>
+                        <div class="record-xp">
+                            +{{ "{:,.0f}".format(record.xp_gained) }} XP
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <div class="modal-grid">
+                <div class="modal-image-area">
+                    <img id="modal-image" src="" alt="作品画像" style="width: 100%; height: auto;">
+                    <div id="modal-no-image" style="text-align: center; padding: 50px; border: 1px dashed #ccc; display: none;">画像はありません</div>
+                </div>
+                <div class="modal-details-area">
+                    <h3 id="modal-title"></h3>
+                    <p><strong>日付:</strong> <span id="modal-date"></span></p>
+                    <p><strong>種別:</strong> <span id="modal-type"></span></p>
+                    <p><strong>獲得XP:</strong> <span id="modal-xp"></span></p>
+                    <hr>
+                    <p><strong>内容:</strong> <span id="modal-description"></span></p>
+                    <div id="modal-acq-info" style="margin-top: 10px; display: none;">
+                        <p><strong>評価:</strong> <span id="modal-evaluation"></span></p>
+                    </div>
+                    <div id="modal-time-info" style="margin-top: 10px; display: none;">
+                        <p><strong>時間:</strong> <span id="modal-duration"></span> 分</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .view-detail {
+            cursor: pointer; /* クリック可能であることを示す */
+            transition: background-color 0.1s;
+        }
+        .view-detail:hover {
+            background-color: #f0f0f0;
+        }
+        
+        /* モーダル（ポップアップ）のスタイル */
+        .modal {
+            display: none; /* 初期状態では非表示 */
+            position: fixed; 
+            z-index: 200; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.8); /* 半透明の黒い背景 */
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto; /* 画面中央に配置 */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%; 
+            max-width: 1000px; /* 最大幅を指定 */
+            border-radius: 8px;
+            position: relative;
+        }
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: -10px;
+            margin-right: -5px;
+        }
+        .close-btn:hover, .close-btn:focus {
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr; /* 画像エリアを広く、詳細エリアを狭く */
+            gap: 20px;
+        }
+        .modal-image-area {
+            max-height: 80vh; /* 画面の高さに応じて制限 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        .modal-image-area img {
+            object-fit: contain;
+            cursor: default; /* 拡大画像はクリックできない */
+        }
+        @media (max-width: 800px) {
+            .modal-grid {
+                grid-template-columns: 1fr; /* スマホ表示時は縦並び */
+            }
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+    <script>
+        // --- 既存のモーダル処理（変更なし） ---
+        const modal = document.getElementById("detail-modal");
+        const closeBtn = document.querySelector(".close-btn");
+        const records = document.querySelectorAll(".view-detail");
+
+        // 閉じるボタンでモーダルを閉じる
+        closeBtn.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        // ウィンドウ外クリックでモーダルを閉じる
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // 各記録のエントリーにクリックイベントを設定
+        records.forEach(record => {
+            record.addEventListener('click', function() {
+                const imageUrl = this.dataset.imageUrl;
+                const type = this.dataset.type;
+
+                // データのセット
+                document.getElementById('modal-title').textContent = this.dataset.subtype;
+                document.getElementById('modal-date').textContent = this.dataset.date;
+                document.getElementById('modal-type').textContent = type;
+                document.getElementById('modal-xp').textContent = `+${this.dataset.xp} XP`;
+                document.getElementById('modal-description').textContent = this.dataset.description || '（メモなし）';
+
+                // 画像のセット
+                const modalImage = document.getElementById('modal-image');
+                const noImage = document.getElementById('modal-no-image');
+                if (imageUrl) {
+                    modalImage.src = imageUrl;
+                    modalImage.style.display = 'block';
+                    noImage.style.display = 'none';
+                } else {
+                    modalImage.style.display = 'none';
+                    noImage.style.display = 'block';
+                }
+
+                // タイプごとの情報表示切替
+                document.getElementById('modal-acq-info').style.display = 'none';
+                document.getElementById('modal-time-info').style.display = 'none';
+                
+                if (type === '科目習得') {
+                    document.getElementById('modal-acq-info').style.display = 'block';
+                    document.getElementById('modal-evaluation').textContent = this.dataset.evaluation;
+                } else if (type === '時間学習') {
+                    document.getElementById('modal-time-info').style.display = 'block';
+                    document.getElementById('modal-duration').textContent = this.dataset.duration;
+                }
+
+                // モーダルを表示
+                modal.style.display = "block";
+            });
+        });
+
+        // --- 学習時間グラフ処理 ---
+        const ctx = document.getElementById('timeAnalysisChart').getContext('2d');
+        let timeChart = null; 
+        
+        // ----------------------------------------------------
+        // グラフデータ補間関数 (累積時間表示用)
+        // ----------------------------------------------------
+        // ※ 累積値は分(minutes)で保持し、後で一度だけ時間(hours)に変換します。
+
+        /**
+         * 欠損している月を補間し、累積学習時間として表示するデータを生成
+         * @param {Array<Object>} aggregatedData - {date: Date, total_time: number} の配列 (minutes)
+         */
+        function fillMissingMonths(aggregatedData) {
+            if (aggregatedData.length === 0) return { labels: [], data: [] };
+
+            // データが存在する最初と最後の月を取得
+            const firstDate = aggregatedData[0].date;
+            const lastDate = aggregatedData[aggregatedData.length - 1].date;
+
+            const filledData = [];
+            let cumulativeTime = 0;
+            let currentDataIndex = 0;
+
+            // 最初の月の1日に設定
+            let currentDate = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+            
+            // 最後の月の末日までループ
+            while (currentDate <= lastDate || 
+                   currentDate.getFullYear() < lastDate.getFullYear() || 
+                   (currentDate.getFullYear() === lastDate.getFullYear() && currentDate.getMonth() <= lastDate.getMonth())) {
+                
+                const currentMonthLabel = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                
+                // 今月のデータがあるかチェック
+                if (currentDataIndex < aggregatedData.length) {
+                    const recordDate = aggregatedData[currentDataIndex].date;
+                    const recordMonthLabel = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}`;
+                    
+                    if (currentMonthLabel === recordMonthLabel) {
+                        // データがある場合は累積時間に加算
+                        cumulativeTime += aggregatedData[currentDataIndex].total_time;
+                        currentDataIndex++;
+                        // 同じ月に複数のデータポイントが存在する可能性を考慮し、次のデータも同じ月かチェック
+                        while (currentDataIndex < aggregatedData.length && 
+                               `${aggregatedData[currentDataIndex].date.getFullYear()}-${String(aggregatedData[currentDataIndex].date.getMonth() + 1).padStart(2, '0')}` === currentMonthLabel) {
+                            cumulativeTime += aggregatedData[currentDataIndex].total_time;
+                            currentDataIndex++;
+                        }
+                    }
+                }
+                // データがない月でも、直前の累積時間を保持したまま記録
+                filledData.push({
+                    label: currentMonthLabel,
+                    cumulative: cumulativeTime // 累積値 (minutes)
+                });
+                
+                // 次の月に進む
+                currentDate.setMonth(currentDate.getMonth() + 1);
+            }
+            
+            return {
+                labels: filledData.map(d => d.label),
+                data: filledData.map(d => d.cumulative)
+            };
+        }
+
+        /**
+         * 欠損している年を補間し、累積学習時間として表示するデータを生成
+         * @param {Array<Object>} aggregatedData - {date: Date, total_time: number} の配列 (minutes)
+         */
+        function fillMissingYears(aggregatedData) {
+            if (aggregatedData.length === 0) return { labels: [], data: [] };
+
+            const firstYear = aggregatedData[0].date.getFullYear();
+            const lastYear = aggregatedData[aggregatedData.length - 1].date.getFullYear();
+
+            const filledData = [];
+            let cumulativeTime = 0;
+            let currentDataIndex = 0;
+
+            for (let year = firstYear; year <= lastYear; year++) {
+                let currentYearTime = 0;
+                
+                // その年のデータをすべて集計
+                while (currentDataIndex < aggregatedData.length && aggregatedData[currentDataIndex].date.getFullYear() === year) {
+                    currentYearTime += aggregatedData[currentDataIndex].total_time;
+                    currentDataIndex++;
+                }
+
+                // 累積時間に加算
+                cumulativeTime += currentYearTime;
+
+                // データがない年でも、直前の累積時間を保持したまま記録
+                filledData.push({
+                    label: String(year),
+                    cumulative: cumulativeTime // 累積値 (minutes)
+                });
+            }
+
+            return {
+                labels: filledData.map(d => d.label),
+                data: filledData.map(d => d.cumulative)
+            };
+        }
+
+        // ----------------------------------------------------
+        // グラフ描画関数
+        // ----------------------------------------------------
+
+        function renderChart(period) {
+            // app.pyで定義したAPIエンドポイントからデータを取得 (分単位の集計値)
+            fetch(`/api/time_analysis/${period}`)
+                .then(response => response.json())
+                .then(apiData => {
+                    if (apiData.error) {
+                        console.error(data.error);
+                        return;
+                    }
+
+                    // APIから受け取ったデータを、日付と時間に変換
+                    const rawData = apiData.labels.map((label, index) => {
+                        let date;
+                        if (period === 'month') {
+                            const [year, month] = label.split('-').map(Number);
+                            date = new Date(year, month - 1, 1);
+                        } else {
+                            date = new Date(Number(label), 0, 1);
+                        }
+
+                        return {
+                            date: date,
+                            total_time: apiData.data[index] // minutes
+                        };
+                    }).sort((a, b) => a.date - b.date); // 日付でソート
+
+                    
+                    let processedData;
+                    let chartTitle;
+                    
+                    if (period === 'month') {
+                        processedData = fillMissingMonths(rawData);
+                        chartTitle = "累積学習時間（月次）";
+                    } else { // 'year'
+                        processedData = fillMissingYears(rawData);
+                        chartTitle = "累積学習時間（年次）";
+                    }
+                    
+                    // 【★★最終修正ポイント★★】データを時間に変換 (分 / 60)
+                    // 計算は一度で完了し、toFixed(2)を使わず、Math.roundで丸め込みます。
+                    // 5時間=300分が 5.00 になることを確認します。
+                    const finalDataInHours = processedData.data.map(minutes => {
+                         // minutes / 60.0 で時間（hours）を計算し、小数点第2位で四捨五入して数値として返す
+                         return Math.round(minutes * 100) / 100;
+                    });
+
+
+                    // 既存のグラフがあれば破棄
+                    if (timeChart) {
+                        timeChart.destroy();
+                    }
+                    
+                    // データがなければ表示を中止
+                    if (finalDataInHours.length === 0) {
+                        const chartDiv = document.getElementById('timeAnalysisChart').parentNode;
+                        chartDiv.innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">データがまだありません。</p>';
+                        return;
+                    }
+                    // データがある場合は、Canvasを元に戻す
+                    const chartDiv = document.getElementById('timeAnalysisChart').parentNode;
+                    if (chartDiv.querySelector('p')) {
+                        chartDiv.innerHTML = '<canvas id="timeAnalysisChart" style="max-height: 400px;"></canvas>';
+                        const newCtx = document.getElementById('timeAnalysisChart').getContext('2d');
+                        ctx.canvas = newCtx.canvas;
+                    }
+
+
+                    // 新しいグラフの描画
+                    timeChart = new Chart(ctx, {
+                        type: 'bar', // 棒グラフ
+                        data: {
+                            labels: processedData.labels,
+                            datasets: [{
+                                label: chartTitle,
+                                data: finalDataInHours,
+                                backgroundColor: 'rgba(0, 119, 204, 0.8)', 
+                                borderColor: 'rgba(0, 119, 204, 1)',
+                                borderWidth: 1,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: '累積学習時間 (時間)' // 単位は時間
+                                    },
+                                    // 目盛り表示を調整し、小数点以下を表示するように強制
+                                    ticks: {
+                                        callback: function(value, index, ticks) {
+                                            return value.toFixed(2) + ' 時間';
+                                        }
+                                    }
+                                },
+                                x: {
+                                    type: 'category'
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                },
+                                title: {
+                                    display: true,
+                                    text: chartTitle
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        // ツールチップに表示する値を整形（時間単位）
+                                        label: function(context) {
+                                            let label = context.dataset.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            if (context.parsed.y !== null) {
+                                                // ツールチップでも小数点第2位まで表示を保証
+                                                label += context.parsed.y.toFixed(2) + ' 時間'; 
+                                            }
+                                            return label;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('グラフデータの取得に失敗しました:', error));
+        }
+
+        // ボタンにイベントリスナーを設定
+        document.getElementById('btn-show-month').addEventListener('click', () => renderChart('month'));
+        document.getElementById('btn-show-year').addEventListener('click', () => renderChart('year'));
+
+        // 初期表示：月別
+        renderChart('month'); 
+
+    </script>
+{% endblock %}

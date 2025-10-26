@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}イラスト学習 XP システム{% endblock %}</title>
+    <style>
+        :root {
+            --bg-main: #f4f4f4;
+            --bg-card: #ffffff;
+            --text-color: #333;
+            --accent-color: #0077cc;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --border-color: #ddd;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-main); color: var(--text-color); margin: 0; padding-top: 60px; }
+        .container { width: 90%; max-width: 1200px; margin: auto; padding: 20px 0; }
+        header { background-color: var(--accent-color); color: white; padding: 15px 0; position: fixed; width: 100%; top: 0; z-index: 100; }
+        header .container { display: flex; justify-content: space-between; align-items: center; padding: 0 5%; }
+        header h1 { margin: 0; font-size: 1.5em; }
+        nav a { color: white; text-decoration: none; margin-left: 20px; font-weight: bold; transition: color 0.3s; }
+        nav a:hover { color: #ffe4b5; }
+        
+        /* カード */
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        
+        /* フォーム */
+        .form-group { margin-bottom: 15px; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
+        .btn-primary { background-color: var(--accent-color); color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
+        .btn-primary:hover { background-color: #005bb5; }
+        
+        /* ステータスグリッド */
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .status-item { text-align: center; padding: 10px; border-right: 1px solid var(--border-color); }
+        .status-item:last-child { border-right: none; }
+        .xp-display { font-size: 2em; font-weight: bold; color: var(--accent-color); }
+        .rank-title { font-size: 0.9em; color: #888; }
+
+        /* フラッシュメッセージ */
+        .flash-message { padding: 10px; margin-bottom: 20px; border-radius: 4px; font-weight: bold; }
+        .flash-message.success { background-color: #d4edda; color: var(--success-color); border: 1px solid #c3e6cb; }
+        .flash-message.error { background-color: #f8d7da; color: var(--error-color); border: 1px solid #f5c6cb; }
+
+        /* XPプログレスバー */
+        .progress-bar { height: 100%; background-color: var(--success-color); border-radius: 5px; transition: width 0.5s ease-in-out; }
+        
+        /* モーダル */
+        .modal { display: none; position: fixed; z-index: 101; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: var(--bg-card); margin: 15% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 600px; border-radius: 8px; position: relative; }
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close-btn:hover, .close-btn:focus { color: #000; text-decoration: none; cursor: pointer; }
+
+        /* グラフ */
+        #timeAnalysisChart { max-height: 400px; }
+        
+        /* アーカイブ */
+        .archive-section h3 { border-bottom: 2px solid var(--accent-color); padding-bottom: 5px; margin-top: 30px; }
+        .record-entry { border: 1px solid var(--border-color); padding: 10px; margin-bottom: 10px; border-radius: 4px; display: flex; align-items: center; cursor: pointer; transition: background-color 0.1s; }
+        .record-entry:hover { background-color: #eee; }
+        .record-entry img { width: 50px; height: 50px; margin-right: 15px; border-radius: 4px; object-fit: cover; }
+        .record-details { flex-grow: 1; }
+        .record-xp { font-weight: bold; color: var(--accent-color); margin-left: auto; }
+
+        /* ------------------------------------------- */
+        /* 🌟 作品画像の拡大機能用スタイル (追加) */
+        /* ------------------------------------------- */
+
+        /* モーダル内の画像に適用するスタイル (拡大可能であることを示すカーソルを追加) */
+        #modal-image {
+            cursor: zoom-in; 
+            transition: all 0.3s ease; /* スムーズなアニメーション */
+        }
+
+        /* 拡大表示時のモーダルコンテンツの調整 (画像のみを際立たせる) */
+        .modal-content.zoomed {
+            margin: 0; /* マージンをなくして画面いっぱいに */
+            width: 100%; 
+            max-width: 100%;
+            height: 100%;
+            border-radius: 0;
+            background-color: rgba(0, 0, 0, 0.9); /* 背景を暗くして画像を目立たせる */
+            box-shadow: none;
+            padding: 0; /* パディングをゼロに */
+            display: flex; /* 画像を中央に配置 */
+            justify-content: center;
+            align-items: center;
+            /* 詳細テキストを非表示にする (画像に集中) */
+            font-size: 0; 
+        }
+
+        /* 拡大された画像スタイル */
+        #modal-image.zoomed-image {
+            max-width: 95vw; /* ビューポート幅の95%まで拡大 */
+            max-height: 95vh; /* ビューポート高さの95%まで拡大 */
+            width: auto;
+            height: auto;
+            object-fit: contain; /* 画像全体を表示 */
+            cursor: zoom-out; /* 拡大解除を促すカーソル */
+            border: 4px solid white; /* 画像を際立たせるための枠 */
+            border-radius: 4px;
+        }
+
+        /* 閉じるボタンを拡大表示時も見えるように調整 */
+        .modal-content.zoomed .close-btn { /* .close-btn を指定 */
+            position: fixed; /* 固定配置 */
+            top: 20px;
+            right: 30px;
+            font-size: 40px;
+            color: white; /* 背景が暗くなるので白に */
+            text-shadow: 0 0 5px #000;
+            opacity: 1; 
+            z-index: 1001; 
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🎨 XP システム</h1>
+            <nav>
+                <a href="{{ url_for('index') }}">ホーム</a>
+                <a href="{{ url_for('archive') }}">アーカイブ閲覧</a>
+                <a href="{{ url_for('resources') }}">リソース・本棚</a>
+                <a href="{{ url_for('mypage') }}">マイページ</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>記録詳細: <span id="modal-type"></span> - <span id="modal-subtype"></span></h3>
+            <p><strong>記録日時:</strong> <span id="modal-date"></span></p>
+            <p><strong>獲得XP:</strong> <span id="modal-xp"></span></p>
+            <p><strong>評価:</strong> <span id="modal-evaluation"></span></p>
+            <p><strong>時間:</strong> <span id="modal-duration"></span></p>
+            <p><strong>詳細:</strong> <span id="modal-description"></span></p>
+            <div id="modal-image-container" style="text-align: center; margin-top: 15px;">
+                <img id="modal-image" src="" alt="証拠画像" style="max-width: 100%; height: auto; border-radius: 4px; display: none;">
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // モーダル処理 (archive.htmlで必要だが、base.htmlに共通処理を定義)
+        var modal = document.getElementById("detailModal");
+        var span = document.getElementsByClassName("close-btn")[0];
+        
+        // 💡 追加: 画像とコンテンツの要素を取得
+        const img = document.getElementById('modal-image');
+        const modalContent = document.querySelector('#detailModal .modal-content');
+
+        // 記録エントリーがクリックされたときの処理
+        document.querySelectorAll('.record-entry.view-detail, .work-item.view-detail').forEach(item => {
+            item.addEventListener('click', event => {
+                // 💡 修正: 既存の拡大状態をリセット
+                if (img && modalContent) {
+                    img.classList.remove('zoomed-image');
+                    modalContent.classList.remove('zoomed');
+                }
+                
+                const type = item.getAttribute('data-type');
+                const subtype = item.getAttribute('data-subtype');
+                const date = item.getAttribute('data-date');
+                const xp = item.getAttribute('data-xp');
+                const description = item.getAttribute('data-description');
+                const evaluation = item.getAttribute('data-evaluation');
+                const duration = item.getAttribute('data-duration');
+                const image_path = item.getAttribute('data-image'); // mypage.htmlで正しくセットされているはず
+
+                document.getElementById('modal-type').textContent = type;
+                document.getElementById('modal-subtype').textContent = subtype;
+                document.getElementById('modal-date').textContent = date;
+                document.getElementById('modal-xp').textContent = xp;
+                document.getElementById('modal-description').textContent = description;
+                
+                // タイプに応じて表示/非表示を切り替え
+                const eval_elem = document.getElementById('modal-evaluation').parentElement;
+                const dur_elem = document.getElementById('modal-duration').parentElement;
+                const img_elem = document.getElementById('modal-image-container');
+                
+                if (type === '科目習得' || item.classList.contains('work-item')) { // work-item も 科目習得と同様に処理
+                    eval_elem.style.display = 'block';
+                    document.getElementById('modal-evaluation').textContent = evaluation;
+                    dur_elem.style.display = 'none';
+                    img_elem.style.display = 'block';
+                    
+                    // image_pathをファイル名のみに分解し、uploaded_fileルーティングを使用
+                    const fileName = image_path ? image_path.split('/').pop().split('\\').pop() : null;
+                    // img.srcの設定時にURLを構築
+                    img.src = fileName ? `{{ url_for('uploaded_file', filename='') }}${fileName}` : ''; 
+                    img.style.display = fileName ? 'block' : 'none';
+                } else { // 時間学習 (archive.html のレコード用)
+                    eval_elem.style.display = 'none';
+                    dur_elem.style.display = 'block';
+                    document.getElementById('modal-duration').textContent = duration + ' 分';
+                    img_elem.style.display = 'none';
+                    img.style.display = 'none';
+                }
+
+                modal.style.display = "block";
+            });
+        });
+
+        // 💡 追加: 作品画像クリックで拡大/縮小を切り替える機能
+        if (img && modalContent) {
+            img.addEventListener('click', function(event) {
+                event.stopPropagation(); // モーダルを閉じるのを防ぎます
+                this.classList.toggle('zoomed-image');
+                modalContent.classList.toggle('zoomed');
+            });
+        }
+        
+        // ×ボタンでモーダルを閉じる
+        span.onclick = function() {
+            // 💡 閉じる前に、もし拡大状態なら解除します
+            if (img && modalContent) {
+                img.classList.remove('zoomed-image');
+                modalContent.classList.remove('zoomed');
+            }
+            modal.style.display = "none";
+        }
+
+        // ウィンドウ外クリックでモーダルを閉じる
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                // 💡 閉じる前に、もし拡大状態なら解除します
+                if (img && modalContent) {
+                    img.classList.remove('zoomed-image');
+                    modalContent.classList.remove('zoomed');
+                }
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
