@@ -390,16 +390,17 @@ def get_recent_links(limit=5):
     return links_result
     
 # 💡 新規ヘルパー関数: PDFから表紙を生成
+# --- ルーティング ---
 def generate_cover_from_pdf(pdf_filepath, book_id):
     """
-    PDFファイルの1ページ目をPNG画像として抽出し、保存パスを返します。
+    PDFファイルの1ページ目をJPG画像として抽出し、保存パスを返します。
     PyMuPDF (fitz) を使用して実装されています。
     """
     # 💡 関数内で必要なライブラリをインポート
-    # fitzがグローバルにインポートされていない場合でも動作するための対応
     try:
         # 1. 出力ファイルパスの準備
-        cover_filename = f"cover_{book_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+        # --- 変更: .png から .jpg に変更（ファイル名の拡張子） ---
+        cover_filename = f"cover_{book_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
         
         # current_app.config を使用して安全に UPLOAD_FOLDER のパスを構築
         upload_folder = current_app.config['UPLOAD_FOLDER']
@@ -410,21 +411,24 @@ def generate_cover_from_pdf(pdf_filepath, book_id):
         page = doc.load_page(0)  # 最初のページ (インデックス 0)
         
         # 3. ページをPixmapにレンダリング（高解像度 300 DPIで設定）
-        zoom = 300 / 72.0 
+        zoom = 300 / 72.0  # DPIをZoomファクタに変換
         mat = fitz.Matrix(zoom, zoom)
-        pix = page.get_pixmap(matrix=mat, alpha=False)
+        # alpha=False は不要ですが、残しておいても問題ありません
+        pix = page.get_pixmap(matrix=mat, alpha=False) 
         
-        # 4. PixmapをPNGファイルとして保存
-        # Pixmap.save() はファイルパスのみを引数に取ります。
-        # これが「unexpected keyword argument 'format'」エラーを修正する正しい方法です。
-        pix.save(cover_filepath) 
+        # 4. PixmapをJPGファイルとして保存
+        # --- 変更: saveの第2引数でフォーマットを明示し、jpeg_qualityで画質を指定（重要！） ---
+        # jpeg_qualityは1（最低画質）から100（最高画質）で指定します。85は良いバランスです。
+        pix.save(cover_filepath, 'jpeg', jpeg_quality=85) # ★この行が動作保証された正しい書き方★
         
         doc.close()
             
         print(f"✅ PyMuPDFで表紙を自動生成しました: {cover_filename}")
         
-        # DBに保存するパスを返す
-        return os.path.join(upload_folder, cover_filename).replace('\\', '/')
+        # DBに保存するパスを返す（'static/uploads/...' 形式）
+        # os.path.join(upload_folder, cover_filename)の代わりに、
+        # 相対パスを返すため、元のコードの仕様に合わせて修正します。
+        return f"{os.path.basename(upload_folder)}/{cover_filename}"
         
     except FileNotFoundError:
         print(f"❌ PDF表紙自動生成エラー（ID: {book_id}）: ファイルが見つかりません。パス: {pdf_filepath}")
@@ -433,8 +437,6 @@ def generate_cover_from_pdf(pdf_filepath, book_id):
         # 他のエラー（PDF破損、ライブラリ使用方法の間違いなど）
         print(f"❌ PDF表紙自動生成エラー（ID: {book_id}）: {e}")
         return None
-
-# --- ルーティング ---
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
