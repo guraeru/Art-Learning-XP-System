@@ -147,24 +147,24 @@
 
     <script>
         // --- 既存のモーダル処理（変更なし） ---
-        const modal = document.getElementById("detail-modal");
-        const closeBtn = document.querySelector(".close-btn");
-        const records = document.querySelectorAll(".view-detail");
+    const archiveModal = document.getElementById("detail-modal");
+    const archiveCloseBtn = document.querySelector(".close-btn");
+    const archiveRecords = document.querySelectorAll(".view-detail");
 
         // 閉じるボタンでモーダルを閉じる
-        closeBtn.onclick = function() {
-            modal.style.display = "none";
-        }
+        archiveCloseBtn.onclick = function() {
+            archiveModal.style.display = "none";
+        };
 
         // ウィンドウ外クリックでモーダルを閉じる
         window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = "none";
+            if (event.target == archiveModal) {
+                archiveModal.style.display = "none";
             }
-        }
+        };
 
         // 各記録のエントリーにクリックイベントを設定
-        records.forEach(record => {
+        archiveRecords.forEach(record => {
             record.addEventListener('click', function() {
                 const imageUrl = this.dataset.imageUrl;
                 const type = this.dataset.type;
@@ -201,7 +201,7 @@
                 }
 
                 // モーダルを表示
-                modal.style.display = "block";
+                archiveModal.style.display = "block";
             });
         });
 

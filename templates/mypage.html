@@ -42,16 +42,16 @@
     <div id="home" class="tab-content card">
         
         <h3 style="margin-top: 10px;">🎨 pixiv 今日のお題・新着コンテスト</h3>
-        <div class="topics-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div class="topics-grid grid-2" style="gap: 20px;">
             {% for topic in pixiv_topics %}
                 <a href="{{ topic.url }}" target="_blank" class="topic-card card" style="text-decoration: none; color: inherit; padding: 15px; overflow: hidden; transition: box-shadow 0.3s;">
                     <h4 style="color: var(--accent-color); margin-top: 0;">{{ topic.title }}</h4>
                     {% if topic.image %}
                         <div class="pixiv-image-wrapper">
-                            <img src="{{ url_for('static', filename=topic.image) }}" 
-                                 alt="{{ topic.title }}" 
-                                 class="topic-image"
-                                 style="border-radius: 4px;"> </div>
+                       <img src="{{ url_for('static', filename=topic.image) }}" 
+                           alt="{{ topic.title }}" 
+                           class="topic-image"
+                           style="border-radius: 4px;" loading="lazy"> </div>
                     {% else %}
                         <p style="font-size: 0.9em; color: #666;">pixivで詳細を確認</p>
                     {% endif %}
@@ -110,9 +110,9 @@
                         data-evaluation="{{ work.evaluation | default('') }}"
                         data-image="{{ file_name }}"> 
                         {% if work.image_path %}
-                            <img src="{{ url_for('uploaded_file', filename=file_name) }}" 
-                                 alt="{{ work.subtype }}" 
-                                 style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;">
+                       <img src="{{ url_for('uploaded_file', filename=file_name) }}" 
+                           alt="{{ work.subtype }}" 
+                           style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;" loading="lazy">
                         {% else %}
                              <div style="width: 100%; height: 150px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px;">画像なし</div>
                         {% endif %}

@@ -32,7 +32,7 @@
         </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+    <div class="grid-2" style="gap: 30px; margin-top: 30px;">
         
         <div class="card">
             <h3>時間学習の記録</h3>
@@ -40,10 +40,10 @@
             <div id="timer-box" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; text-align: center;">
                 <h4>タイムウォッチ (ブラウザ永続化)</h4>
                 <div id="timer-display" style="font-size: 2.5em; font-weight: bold; color: var(--accent-color); margin: 10px 0;">00:00:00</div>
-                <div style="display: flex; justify-content: space-around;">
-                    <button type="button" id="start-btn" class="btn-primary" style="flex: 1; margin-right: 5px;">開始</button>
-                    <button type="button" id="stop-btn" class="btn-secondary" style="flex: 1; margin-right: 5px;" disabled>停止＆記録</button>
-                    <button type="button" id="reset-btn" class="btn-secondary" style="flex: 1;" disabled>リセット</button>
+                <div class="stack-sm" style="justify-content: space-around;">
+                    <button type="button" id="start-btn" class="btn-primary full-width">開始</button>
+                    <button type="button" id="stop-btn" class="btn-secondary full-width" disabled>停止＆記録</button>
+                    <button type="button" id="reset-btn" class="btn-secondary full-width" disabled>リセット</button>
                 </div>
             </div>
             <form action="{{ url_for('log_time') }}" method="POST" id="log-time-form">

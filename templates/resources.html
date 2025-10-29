@@ -19,9 +19,9 @@
             
             <div class="book-cover-wrapper">
                 {% if book.cover_image_path %}
-                    <img src="{{ url_for('uploaded_file', filename=book.cover_image_path.split('/')[-1].split('\\')[-1]) }}" 
-                         alt="{{ book.title }} の表紙" 
-                         class="book-cover-image">
+                <img src="{{ url_for('uploaded_file', filename=book.cover_image_path.split('/')[-1].split('\\')[-1]) }}" 
+                    alt="{{ book.title }} の表紙" 
+                    class="book-cover-image" loading="lazy">
                 {% else %}
                     <div class="cover-placeholder">
                         <i class="fas fa-book fa-3x"></i>
@@ -86,6 +86,11 @@
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
             padding: 20px 0;
+        }
+        @media (max-width: 768px) {
+            .book-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
         }
 
         .book-card {

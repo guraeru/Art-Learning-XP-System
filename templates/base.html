@@ -19,8 +19,19 @@
         header { background-color: var(--accent-color); color: white; padding: 15px 0; position: fixed; width: 100%; top: 0; z-index: 100; }
         header .container { display: flex; justify-content: space-between; align-items: center; padding: 0 5%; }
         header h1 { margin: 0; font-size: 1.5em; }
-        nav a { color: white; text-decoration: none; margin-left: 20px; font-weight: bold; transition: color 0.3s; }
+        nav { display: flex; gap: 20px; }
+        nav a { color: white; text-decoration: none; font-weight: bold; transition: color 0.3s; }
         nav a:hover { color: #ffe4b5; }
+
+        /* ▼ モバイルユーティリティ */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .stack-sm { display: flex; gap: 10px; }
+        .full-width { width: 100%; }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+            .stack-sm { flex-direction: column; }
+            .container { width: 94%; padding: 0 0; }
+        }
         
         /* カード */
         .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -30,6 +41,13 @@
         .form-control { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
         .btn-primary { background-color: var(--accent-color); color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
         .btn-primary:hover { background-color: #005bb5; }
+        .btn-secondary { background-color: #6c757d; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        .btn-danger { background-color: #dc3545; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
+        .btn-danger:hover { background-color: #c82333; }
+        @media (max-width: 768px) {
+            .btn-primary, .btn-secondary, .btn-danger { min-height: 44px; }
+        }
         
         /* ステータスグリッド */
         .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
@@ -113,13 +131,41 @@
             opacity: 1; 
             z-index: 1001; 
         }
+
+        /* ▼ ハンバーガーナビ */
+        .nav-toggle {
+            display: none;
+            background: transparent;
+            border: 2px solid white;
+            color: white;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 0.95rem;
+        }
+        @media (max-width: 768px) {
+            .nav-toggle { display: inline-block; }
+            nav#mainNav {
+                position: absolute;
+                top: 60px;
+                left: 0; right: 0;
+                display: none;
+                flex-direction: column;
+                background: var(--accent-color);
+                padding: 12px 5%;
+                gap: 12px;
+                border-top: 1px solid rgba(255,255,255,0.2);
+                z-index: 200; /* iOSでの重なり順を保証 */
+            }
+            nav#mainNav.open { display: flex; }
+        }
     </style>
 </head>
 <body>
     <header>
         <div class="container">
             <h1>🎨 XP システム</h1>
-            <nav>
+            <button class="nav-toggle" id="navToggle" type="button" aria-label="メニューを開閉" aria-expanded="false" aria-controls="mainNav">メニュー</button>
+            <nav id="mainNav">
                 <a href="{{ url_for('index') }}">ホーム</a>
                 <a href="{{ url_for('archive') }}">アーカイブ閲覧</a>
                 <a href="{{ url_for('resources') }}">リソース・本棚</a>
@@ -157,52 +203,54 @@
     
     <script>
         // モーダル処理 (archive.htmlで必要だが、base.htmlに共通処理を定義)
-        var modal = document.getElementById("detailModal");
-        var span = document.getElementsByClassName("close-btn")[0];
+        var modal = document.getElementById('detailModal');
+        var span = document.getElementsByClassName('close-btn')[0];
         
-        // 💡 追加: 画像とコンテンツの要素を取得
-        const img = document.getElementById('modal-image');
-        const modalContent = document.querySelector('#detailModal .modal-content');
+        // 💡 追加: 画像とコンテンツの要素を取得（varで互換性配慮）
+        var img = document.getElementById('modal-image');
+        var modalContent = document.querySelector('#detailModal .modal-content');
 
-        // 記録エントリーがクリックされたときの処理
-        document.querySelectorAll('.record-entry.view-detail, .work-item.view-detail').forEach(item => {
-            item.addEventListener('click', event => {
+        // 記録エントリーがクリックされたときの処理（古いSafari向け: NodeList.forEachを使わない）
+        var detailItems = document.querySelectorAll('.record-entry.view-detail, .work-item.view-detail');
+        for (var i = 0; i < detailItems.length; i++) {
+            detailItems[i].addEventListener('click', function(event) {
                 // 💡 修正: 既存の拡大状態をリセット
                 if (img && modalContent) {
                     img.classList.remove('zoomed-image');
                     modalContent.classList.remove('zoomed');
                 }
-                
-                const type = item.getAttribute('data-type');
-                const subtype = item.getAttribute('data-subtype');
-                const date = item.getAttribute('data-date');
-                const xp = item.getAttribute('data-xp');
-                const description = item.getAttribute('data-description');
-                const evaluation = item.getAttribute('data-evaluation');
-                const duration = item.getAttribute('data-duration');
-                const image_path = item.getAttribute('data-image'); // mypage.htmlで正しくセットされているはず
+
+                var item = this;
+                var type = item.getAttribute('data-type');
+                var subtype = item.getAttribute('data-subtype');
+                var date = item.getAttribute('data-date');
+                var xp = item.getAttribute('data-xp');
+                var description = item.getAttribute('data-description');
+                var evaluation = item.getAttribute('data-evaluation');
+                var duration = item.getAttribute('data-duration');
+                var image_path = item.getAttribute('data-image'); // mypage.htmlで正しくセットされているはず
 
                 document.getElementById('modal-type').textContent = type;
                 document.getElementById('modal-subtype').textContent = subtype;
                 document.getElementById('modal-date').textContent = date;
                 document.getElementById('modal-xp').textContent = xp;
                 document.getElementById('modal-description').textContent = description;
-                
+
                 // タイプに応じて表示/非表示を切り替え
-                const eval_elem = document.getElementById('modal-evaluation').parentElement;
-                const dur_elem = document.getElementById('modal-duration').parentElement;
-                const img_elem = document.getElementById('modal-image-container');
-                
+                var eval_elem = document.getElementById('modal-evaluation').parentElement;
+                var dur_elem = document.getElementById('modal-duration').parentElement;
+                var img_elem = document.getElementById('modal-image-container');
+
                 if (type === '科目習得' || item.classList.contains('work-item')) { // work-item も 科目習得と同様に処理
                     eval_elem.style.display = 'block';
                     document.getElementById('modal-evaluation').textContent = evaluation;
                     dur_elem.style.display = 'none';
                     img_elem.style.display = 'block';
-                    
+
                     // image_pathをファイル名のみに分解し、uploaded_fileルーティングを使用
-                    const fileName = image_path ? image_path.split('/').pop().split('\\').pop() : null;
+                    var fileName = image_path ? image_path.split('/').pop().split('\\').pop() : null;
                     // img.srcの設定時にURLを構築
-                    img.src = fileName ? `{{ url_for('uploaded_file', filename='') }}${fileName}` : ''; 
+                    img.src = fileName ? "{{ url_for('uploaded_file', filename='') }}" + fileName : '';
                     img.style.display = fileName ? 'block' : 'none';
                 } else { // 時間学習 (archive.html のレコード用)
                     eval_elem.style.display = 'none';
@@ -212,15 +260,15 @@
                     img.style.display = 'none';
                 }
 
-                modal.style.display = "block";
+                modal.style.display = 'block';
             });
-        });
+        }
 
         // 💡 追加: 作品画像クリックで拡大/縮小を切り替える機能
         if (img && modalContent) {
             img.addEventListener('click', function(event) {
                 event.stopPropagation(); // モーダルを閉じるのを防ぎます
-                this.classList.toggle('zoomed-image');
+                img.classList.toggle('zoomed-image');
                 modalContent.classList.toggle('zoomed');
             });
         }
@@ -233,7 +281,7 @@
                 modalContent.classList.remove('zoomed');
             }
             modal.style.display = "none";
-        }
+        };
 
         // ウィンドウ外クリックでモーダルを閉じる
         window.onclick = function(event) {
@@ -245,7 +293,26 @@
                 }
                 modal.style.display = "none";
             }
-        }
+        };
+
+        // ▼ ナビゲーション開閉
+        ;(function() {
+            var toggle = document.getElementById('navToggle');
+            var nav = document.getElementById('mainNav');
+            if (toggle && nav) {
+                toggle.addEventListener('click', function() {
+                    var isOpen = nav.classList.toggle('open');
+                    // A11y: aria-expanded を同期
+                    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                });
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth > 768) {
+                        nav.classList.remove('open');
+                        toggle.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+        })();
     </script>
 </body>
 </html>
