@@ -1108,6 +1108,84 @@ def fetch_youtube_playlist_info(playlist_id):
             }
         else:
             print(f"[WARN] OEmbed failed with status {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch playlist info: {e}")
+        return None
+
+
+def get_youtube_playlist_video_count(playlist_id):
+    """
+    Get the actual number of videos in a YouTube playlist.
+    
+    Fetches the playlist page and extracts the video count from the
+    ytInitialData JSON embedded in the page.
+    
+    Args:
+        playlist_id: YouTube playlist ID
+    
+    Returns:
+        Video count (int) or None if unable to determine
+    """
+    if not playlist_id:
+        return None
+    
+    try:
+        import json
+        
+        # Fetch the playlist page
+        url = f"https://www.youtube.com/playlist?list={playlist_id}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            print(f"[WARN] Failed to fetch playlist page: {response.status_code}")
+            return None
+        
+        html = response.text
+        
+        # Extract ytInitialData JSON
+        init_data_pattern = r'var ytInitialData = ({.*?});'
+        match = re.search(init_data_pattern, html, re.DOTALL)
+        
+        if match:
+            try:
+                data = json.loads(match.group(1))
+                
+                # Navigate to sidebar stats
+                sidebar = data.get('sidebar', {}).get('playlistSidebarRenderer', {}).get('items', [])
+                
+                for item in sidebar:
+                    if 'playlistSidebarPrimaryInfoRenderer' in item:
+                        stats = item['playlistSidebarPrimaryInfoRenderer'].get('stats', [])
+                        
+                        # First stat typically contains the video count
+                        if stats and len(stats) > 0:
+                            runs = stats[0].get('runs', [])
+                            for run in runs:
+                                text = run.get('text', '')
+                                # Try to extract a number
+                                num_match = re.search(r'(\d+)', text)
+                                if num_match:
+                                    count = int(num_match.group(1))
+                                    print(f"[SUCCESS] Video count: {count}")
+                                    return count
+                
+                print(f"[WARN] Could not extract video count from JSON structure")
+                return None
+            
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] JSON decode failed: {e}")
+                return None
+        else:
+            print(f"[WARN] ytInitialData not found in HTML")
+            return None
+    
+    except Exception as e:
+        print(f"[ERROR] Failed to get video count: {e}")
+        return None
     
     except requests.exceptions.Timeout:
         print(f"[WARN] Timeout fetching playlist {playlist_id}")
@@ -1242,6 +1320,10 @@ def youtube_player(playlist_id):
         db.session.add(view_history)
         db.session.commit()
     
+    # 実際のビデオ数を YouTube から取得
+    actual_video_count = get_youtube_playlist_video_count(playlist.playlist_id)
+    print(f"[INFO] Playlist {playlist.playlist_id}: actual_video_count={actual_video_count}")
+    
     # 視聴情報を取得
     video_views = VideoView.query.filter_by(playlist_id=playlist_id).order_by(VideoView.video_index).all()
     completed_count = sum(1 for v in video_views if v.is_completed)
@@ -1252,6 +1334,7 @@ def youtube_player(playlist_id):
         video_views=video_views,
         completed_count=completed_count,
         total_count=len(video_views),
+        actual_video_count=actual_video_count or 10,  # Fallback to 10 if unable to fetch
         current_index=view_history.video_index or 0
     )
 

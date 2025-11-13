@@ -215,8 +215,11 @@
     <script>
         const PLAYLIST_ID = {{ playlist.id }};
         const PLAYLIST_YOUTUBE_ID = "{{ playlist.playlist_id }}";
+        const ACTUAL_VIDEO_COUNT = {{ actual_video_count }};
         let currentVideoIndex = {{ current_index or 0 }};
         const videoProgress = {};
+        
+        console.log(`[INIT] ACTUAL_VIDEO_COUNT = ${ACTUAL_VIDEO_COUNT}`);
         
         // YouTube IFrame API を読み込む
         const tag = document.createElement('script');
@@ -266,17 +269,10 @@
             try {
                 const container = document.getElementById('video-list-container');
                 
-                // OEmbed API からプレイリスト情報を取得
-                const oembed_url = `https://www.youtube.com/oembed?url=https://www.youtube.com/playlist?list=${PLAYLIST_YOUTUBE_ID}&format=json`;
-                const oembed_response = await fetch(oembed_url);
-                const oembed_data = await oembed_response.json();
+                console.log(`[LOADING] Creating video list with ${ACTUAL_VIDEO_COUNT} videos`);
                 
-                console.log('OEmbed data:', oembed_data);
-                
-                // 仮：プレイリストのビデオ数は通常、OEmbed では取得できないため
-                // フロントエンドでプレイリストを展開して取得
-                // 実装簡略化のため、デフォルトでビデオを10個作成
-                const videoCount = 10;
+                // 実際のビデオ数を使用
+                const videoCount = ACTUAL_VIDEO_COUNT;
                 let html = '';
                 
                 for (let i = 0; i < videoCount; i++) {
@@ -296,7 +292,7 @@
                 }
                 
                 container.innerHTML = html;
-                console.log(`[INFO] Loaded ${videoCount} videos`);
+                console.log(`[SUCCESS] Loaded ${videoCount} videos`);
                 
                 // 動画アイテムのクリックリスナーを追加
                 document.querySelectorAll('.video-item').forEach((item) => {
@@ -319,7 +315,7 @@
         // UI を更新（進捗バー）
         function updateProgressBar() {
             const completedCount = Object.keys(videoProgress).length;
-            const totalCount = document.querySelectorAll('.video-item').length || 10;
+            const totalCount = ACTUAL_VIDEO_COUNT;
             const progressPercent = totalCount > 0 ? (completedCount / totalCount * 100).toFixed(1) : 0;
             document.getElementById('progress-fill').style.width = progressPercent + '%';
             document.getElementById('progress-text').textContent = completedCount + ' / ' + totalCount;
