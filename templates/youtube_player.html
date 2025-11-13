@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ playlist.title }} - YouTube プレイヤー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 10px;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .player-section {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .player-header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .player-header h1 {
+            font-size: 1.3em;
+            margin-bottom: 5px;
+        }
+        
+        .player-header p {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .player-frame {
+            width: 100%;
+            height: 600px;
+            background: black;
+        }
+        
+        .player-frame iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .progress-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .progress-card h3 {
+            font-size: 1em;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 8px;
+            text-align: center;
+        }
+        
+        .video-list {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .video-list h3 {
+            font-size: 1em;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .video-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background-color: #f9f9f9;
+            border-left: 3px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9em;
+        }
+        
+        .video-item:hover {
+            background-color: #f0f0f0;
+            border-left-color: #667eea;
+        }
+        
+        .video-item.completed {
+            border-left-color: #4CAF50;
+            background-color: #f1f8f4;
+        }
+        
+        .video-item.completed::before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .video-item.current {
+            border-left-color: #764ba2;
+            background-color: #f3f1fa;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .player-frame {
+                height: 400px;
+            }
+        }
+        
+        .xp-badge {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- プレイヤーセクション -->
+        <div class="player-section">
+            <div class="player-header">
+                <h1>{{ playlist.title }}</h1>
+                <p>YouTube プレイリスト再生</p>
+            </div>
+            <div class="player-frame">
+                <iframe id="youtube-player" 
+                        src="https://www.youtube.com/embed/videoseries?list={{ playlist.playlist_id }}" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+        
+        <!-- サイドバー -->
+        <div class="sidebar">
+            <!-- 進捗状況 -->
+            <div class="progress-card">
+                <h3>進捗状況</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: {{ (completed_count / total_count * 100) if total_count > 0 else 0 }}%"></div>
+                </div>
+                <div class="progress-text">
+                    <strong id="progress-text">{{ completed_count }} / {{ total_count }}</strong> 動画完了
+                </div>
+            </div>
+            
+            <!-- 動画リスト -->
+            <div class="video-list">
+                <h3>プレイリスト</h3>
+                <div id="video-list-container">
+                    {% if video_views %}
+                        {% for video in video_views %}
+                        <div class="video-item {% if video.is_completed %}completed{% endif %} {% if video.video_index == current_index %}current{% endif %}" 
+                             data-video-index="{{ video.video_index or loop.index0 }}">
+                            <div>
+                                {{ video.video_title or 'ビデオ ' ~ (loop.index) }}
+                                {% if video.is_completed %}
+                                    <span class="xp-badge">+{{ video.xp_gained or 50 }} XP</span>
+                                {% endif %}
+                            </div>
+                            <div style="font-size: 0.75em; color: #999; margin-top: 3px;">
+                                {% if video.watch_count %}視聴: {{ video.watch_count }}回{% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p style="color: #999; font-size: 0.9em;">動画情報を準備中です...</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const PLAYLIST_ID = {{ playlist.id }};
+        const TOTAL_VIDEOS = {{ total_count }};
+        let currentVideoIndex = {{ current_index or 0 }};
+        
+        // YouTube IFrame API を読み込む
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        
+        let player;
+        const VIDEO_COMPLETE_THRESHOLD = 0.9; // 90% 視聴で完了と判定
+        
+        function onYouTubeIframeAPIReady() {
+            // YouTube IFrame Player は既に埋め込まれているので、手動で初期化
+            player = document.getElementById('youtube-player');
+        }
+        
+        // 動画再生イベントを送信
+        async function sendVideoEvent(eventType, currentTime = 0) {
+            try {
+                const response = await fetch('/api/video_view_event', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        playlist_id: PLAYLIST_ID,
+                        video_index: currentVideoIndex,
+                        event_type: eventType,
+                        current_time: currentTime
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    console.log(`Event ${eventType} recorded for video ${currentVideoIndex}`);
+                    if (eventType === 'complete') {
+                        updateVideoUI(currentVideoIndex);
+                    }
+                }
+            } catch (error) {
+                console.error('Error sending video event:', error);
+            }
+        }
+        
+        // UI を更新
+        function updateVideoUI(videoIndex) {
+            const videoItems = document.querySelectorAll('.video-item');
+            videoItems.forEach((item, index) => {
+                if (index === videoIndex) {
+                    item.classList.add('completed');
+                }
+            });
+            
+            // 進捗バーを更新
+            const completedCount = document.querySelectorAll('.video-item.completed').length;
+            const progressPercent = (completedCount / TOTAL_VIDEOS * 100).toFixed(1);
+            document.getElementById('progress-fill').style.width = progressPercent + '%';
+            document.getElementById('progress-text').textContent = completedCount + ' / ' + TOTAL_VIDEOS;
+        }
+        
+        // 動画アイテムをクリックで選択
+        document.querySelectorAll('.video-item').forEach((item, index) => {
+            item.addEventListener('click', function() {
+                currentVideoIndex = parseInt(this.dataset.videoIndex);
+                // 実装: YouTube プレイヤーで対応する動画に切り替える
+                console.log('切り替え to video:', currentVideoIndex);
+                sendVideoEvent('start');
+            });
+        });
+        
+        // 定期的に再生情報を記録（10秒ごと）
+        setInterval(() => {
+            if (player && player.getCurrentTime) {
+                try {
+                    const currentTime = player.getCurrentTime();
+                    if (currentTime > 0) {
+                        sendVideoEvent('watch', currentTime);
+                    }
+                } catch (e) {
+                    // iframe の制限により情報取得不可の場合もある
+                }
+            }
+        }, 10000);
+        
+        // ウィンドウロード時に最初の動画を再生開始イベント送信
+        window.addEventListener('load', () => {
+            sendVideoEvent('start');
+        });
+        
+        // ウィンドウクローズ時に完了イベント送信（推定）
+        window.addEventListener('beforeunload', () => {
+            sendVideoEvent('complete');
+        });
+    </script>
+</body>
+</html>

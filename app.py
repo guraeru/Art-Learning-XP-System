@@ -29,7 +29,7 @@ import requests
 import pytz
 import fitz
 
-from models import db, UserStatus, Record, Book, ResourceLink, YouTubePlaylist
+from models import db, UserStatus, Record, Book, ResourceLink, YouTubePlaylist, PlaylistViewHistory, VideoView
 from xp_core import XPCalculator, Constants
 
 # --- Configuration Constants ---
@@ -1226,6 +1226,85 @@ def youtube_playlist_process():
         print(f"[ERROR] {e}")
         return redirect(url_for("admin", _anchor="tab-youtube"))
 
+
+@app.route("/youtube_player/<int:playlist_id>")
+def youtube_player(playlist_id):
+    """YouTube プレイリスト再生ページ"""
+    playlist = YouTubePlaylist.query.get(playlist_id)
+    if not playlist:
+        flash("❌ プレイリストが見つかりません。", "error")
+        return redirect(url_for("index"))
+    
+    # 視聴履歴を取得または作成
+    view_history = PlaylistViewHistory.query.filter_by(playlist_id=playlist_id).first()
+    if not view_history:
+        view_history = PlaylistViewHistory(playlist_id=playlist_id)
+        db.session.add(view_history)
+        db.session.commit()
+    
+    # 視聴情報を取得
+    video_views = VideoView.query.filter_by(playlist_id=playlist_id).order_by(VideoView.video_index).all()
+    completed_count = sum(1 for v in video_views if v.is_completed)
+    
+    return render_template(
+        "youtube_player.html",
+        playlist=playlist,
+        video_views=video_views,
+        completed_count=completed_count,
+        total_count=len(video_views),
+        current_index=view_history.video_index or 0
+    )
+
+
+@app.route("/api/video_view_event", methods=["POST"])
+def video_view_event():
+    """動画再生イベント API（進捗トラッキング用）"""
+    data = request.json
+    playlist_id = data.get("playlist_id")
+    video_index = data.get("video_index")
+    event_type = data.get("event_type")  # 'start', 'watch', 'complete'
+    current_time = data.get("current_time", 0)
+    
+    try:
+        # VideoView レコードを取得または作成
+        video_view = VideoView.query.filter_by(
+            playlist_id=playlist_id, 
+            video_index=video_index
+        ).first()
+        
+        if not video_view:
+            video_view = VideoView(
+                playlist_id=playlist_id,
+                video_index=video_index,
+                first_viewed=datetime.utcnow()
+            )
+            db.session.add(video_view)
+        
+        if event_type == "start":
+            video_view.watch_count = (video_view.watch_count or 0) + 1
+            if not video_view.first_viewed:
+                video_view.first_viewed = datetime.utcnow()
+        
+        elif event_type == "watch":
+            video_view.watched_duration_seconds = (video_view.watched_duration_seconds or 0) + int(current_time)
+        
+        elif event_type == "complete":
+            video_view.is_completed = True
+            video_view.xp_gained = 50  # 基本XP
+            
+            # PlaylistViewHistory を更新
+            view_history = PlaylistViewHistory.query.filter_by(playlist_id=playlist_id).first()
+            if view_history:
+                view_history.video_index = video_index
+                view_history.last_viewed = datetime.utcnow()
+        
+        video_view.last_viewed = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({"status": "success", "video_view_id": video_view.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/delete_youtube_playlist/<int:id>", methods=["POST"])

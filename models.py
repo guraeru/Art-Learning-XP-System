@@ -87,3 +87,39 @@ class YouTubePlaylist(db.Model):
 
     def __repr__(self):
         return f"<YouTubePlaylist {self.id}: {self.title}>"
+
+
+class PlaylistViewHistory(db.Model):
+    """プレイリスト視聴履歴を保持するテーブル。"""
+    
+    __tablename__ = "playlist_view_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('youtube_playlist.id'), nullable=False)
+    playlist = db.relationship('YouTubePlaylist', backref='view_histories')
+    video_index = db.Column(db.Integer)  # プレイリスト内の動画インデックス（0-based）
+    last_viewed = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<PlaylistViewHistory playlist_id={self.playlist_id}, video_index={self.video_index}>"
+
+
+class VideoView(db.Model):
+    """個別動画の視聴情報を保持するテーブル。"""
+    
+    __tablename__ = "video_view"
+
+    id = db.Column(db.Integer, primary_key=True)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('youtube_playlist.id'), nullable=False)
+    playlist = db.relationship('YouTubePlaylist', backref='video_views')
+    video_index = db.Column(db.Integer)  # プレイリスト内のビデオインデックス
+    video_title = db.Column(db.String(500))  # 動画タイトル（OEmbed APIから取得可能）
+    watch_count = db.Column(db.Integer, default=0)  # 視聴回数
+    watched_duration_seconds = db.Column(db.Integer, default=0)  # 視聴時間（秒）
+    is_completed = db.Column(db.Boolean, default=False)  # 視聴完了フラグ
+    first_viewed = db.Column(db.DateTime)  # 最初に視聴した日時
+    last_viewed = db.Column(db.DateTime)  # 最後に視聴した日時
+    xp_gained = db.Column(db.Integer, default=0)  # 獲得XP
+
+    def __repr__(self):
+        return f"<VideoView playlist_id={self.playlist_id}, video_index={self.video_index}>"
