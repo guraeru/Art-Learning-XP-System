@@ -124,11 +124,13 @@
             cursor: pointer;
             transition: all 0.2s;
             font-size: 0.9em;
+            user-select: none;
         }
         
         .video-item:hover {
-            background-color: #f0f0f0;
+            background-color: #efefef;
             border-left-color: #667eea;
+            transform: translateX(2px);
         }
         
         .video-item.completed {
@@ -136,7 +138,7 @@
             background-color: #f1f8f4;
         }
         
-        .video-item.completed::before {
+        .video-item.completed:before {
             content: "✓ ";
             color: #4CAF50;
             font-weight: bold;
@@ -146,6 +148,7 @@
             border-left-color: #764ba2;
             background-color: #f3f1fa;
             font-weight: bold;
+            box-shadow: inset -3px 0px 0 #764ba2;
         }
         
         @media (max-width: 1024px) {
@@ -178,12 +181,23 @@
                 <p>YouTube プレイリスト再生</p>
             </div>
             <div class="player-frame">
-                <iframe id="youtube-player" 
-                        src="https://www.youtube.com/embed/videoseries?list={{ playlist.playlist_id }}" 
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowfullscreen>
-                </iframe>
+                <div id="youtube-player" style="width: 100%; height: 100%;"></div>
+            </div>
+            
+            <!-- 再生コントロール -->
+            <div style="background: white; padding: 15px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="skipToPreviousVideo()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1em;">
+                    ← 戻る
+                </button>
+                <button onclick="skipToNextVideo()" style="padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1em;">
+                    → 次へ
+                </button>
+                <button onclick="toggleAutoPlayback()" id="autoPlayButton" style="padding: 10px 20px; background: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1em;">
+                    ⏯ 自動再生: ON
+                </button>
+                <button onclick="window.open('https://www.youtube.com/playlist?list=' + PLAYLIST_YOUTUBE_ID, 'youtube')" style="padding: 10px 20px; background: #FF6B6B; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1em;">
+                    🔗 YouTubeで開く
+                </button>
             </div>
         </div>
         
@@ -218,23 +232,323 @@
         const ACTUAL_VIDEO_COUNT = {{ actual_video_count }};
         let currentVideoIndex = {{ current_index or 0 }};
         const videoProgress = {};
+        let playerReady = false;
         
-        console.log(`[INIT] ACTUAL_VIDEO_COUNT = ${ACTUAL_VIDEO_COUNT}`);
+        // **新機能**: 自動再生フラグ（デフォルト: ON）
+        let autoPlaybackEnabled = true;
+        console.log('[INIT] Auto-playback mode: ON');
+        
+        // **重要**: サーバーから動画IDリストを取得
+        const VIDEO_IDS = [
+        {%- for video_id in video_ids %}
+            "{{ video_id }}",
+        {%- endfor %}
+        ];
+        console.log(`[INIT] Loaded ${VIDEO_IDS.length} video IDs from server`, VIDEO_IDS);
+        
+        // サーバーから完了済み動画情報を初期化
+        const completedVideos = [
+        {%- for video in video_views %}
+            {%- if video.is_completed %}
+                {{ video.video_index }},
+            {%- endif %}
+        {%- endfor %}
+        ];
+        
+        // ビデオごとのXP情報を保存（サーバーから取得）
+        const videoXPMap = {
+        {%- for video in video_views %}
+            {%- if video.is_completed %}
+                {{ video.video_index }}: {{ video.xp_gained }},
+            {%- endif %}
+        {%- endfor %}
+        };
+        
+        // 完了済み動画をvideoProgressに設定
+        completedVideos.forEach(index => {
+            videoProgress[index] = true;
+        });
+        
+        console.log(`[INIT] PLAYLIST_ID=${PLAYLIST_ID}, ACTUAL_VIDEO_COUNT=${ACTUAL_VIDEO_COUNT}, COMPLETED=${completedVideos.length}`, videoXPMap);
+        
+        // **新機能**: 最初の未完了動画を検索して設定
+        function findFirstIncompleteVideo() {
+            for (let i = 0; i < ACTUAL_VIDEO_COUNT; i++) {
+                if (!videoProgress[i]) {
+                    console.log(`[INIT] First incomplete video found at index ${i}`);
+                    return i;
+                }
+            }
+            // すべて完了している場合は最後の動画を返す
+            console.log('[INIT] All videos completed, showing last video');
+            return ACTUAL_VIDEO_COUNT - 1;
+        }
+        
+        // 初期化時に最初の未完了動画を設定
+        currentVideoIndex = findFirstIncompleteVideo();
+        console.log(`[INIT] currentVideoIndex set to ${currentVideoIndex}`);
+        
+        // プレイリストのURLを生成
+        const playlistUrl = `https://www.youtube.com/playlist?list=${PLAYLIST_YOUTUBE_ID}`;
+        
+        // 動画IDマップを生成（インデックス → YouTube動画ID）
+        const VIDEO_ID_MAP = {};
+        VIDEO_IDS.forEach((id, idx) => {
+            VIDEO_ID_MAP[idx] = id;
+        });
+        console.log(`[INIT] VIDEO_ID_MAP created with ${Object.keys(VIDEO_ID_MAP).length} entries`);
         
         // YouTube IFrame API を読み込む
         const tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
+        tag.async = true;
+        tag.onerror = () => console.error('[ERROR] Failed to load YouTube IFrame API');
         const firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         
         let player;
-        const VIDEO_COMPLETE_THRESHOLD = 0.9; // 90% 視聴で完了と判定
+        const videoStates = {}; // 各ビデオの再生時間を記録
         
+        // YouTube IFrame API 初期化コールバック
         function onYouTubeIframeAPIReady() {
-            // YouTube IFrame Player を取得
-            const iframe = document.getElementById('youtube-player');
-            console.log('YouTube IFrame API ready, iframe:', iframe);
+            console.log('[YOUTUBE API] API ready - initializing first player');
+            playerReady = true;
+            initializePlayer();
         }
+        
+        // Player を初期化（最初の読み込み時のみ）
+        function initializePlayer() {
+            if (player) {
+                console.log('[PLAYER] Player already initialized, skipping');
+                return;
+            }
+            
+            console.log('[PLAYER] Creating new player instance');
+            const startVideoId = VIDEO_ID_MAP[currentVideoIndex];
+            
+            player = new YT.Player('youtube-player', {
+                height: '600',
+                width: '100%',
+                videoId: startVideoId,
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError
+                }
+            });
+            
+            console.log('[PLAYER] Player instance created with videoId:', startVideoId);
+        }
+        
+        // プレイヤー準備完了
+        function onPlayerReady(event) {
+            console.log('[PLAYER] Player ready');
+            playerReady = true;
+            // プレイヤーの再生状態監視を開始
+            startPlaybackMonitoring();
+        }
+        
+        // 再生状態が変わったときのコールバック
+        function onPlayerStateChange(event) {
+            console.log('[PLAYER] State changed:', event.data);
+            console.log('[PLAYER] Player object:', player ? 'exists' : 'NOT FOUND');
+            console.log('[PLAYER] Current video index:', currentVideoIndex);
+            
+            const YT_PLAYING = 1;
+            const YT_PAUSED = 2;
+            const YT_ENDED = 0;
+            
+            if (event.data === YT_PLAYING) {
+                console.log('[PLAYBACK] ▶ Playing video');
+                // 再生中: watch イベント送信
+                recordPlaybackTime();
+            } else if (event.data === YT_PAUSED) {
+                console.log('[PLAYBACK] ⏸ Video paused');
+            } else if (event.data === YT_ENDED) {
+                console.log('[PLAYBACK] ⏹ Video ENDED - calling handleVideoEnded()');
+                console.log('[PLAYBACK] Auto-playback flag:', autoPlaybackEnabled);
+                
+                // 動画終了: 完了をマーク
+                handleVideoEnded();
+            }
+        }
+        
+        // 動画終了時の処理
+        function handleVideoEnded() {
+            console.log(`[AUTO] Video ${currentVideoIndex} ended`);
+            console.log(`[AUTO] Auto-playback enabled: ${autoPlaybackEnabled}`);
+            
+            console.log(`[AUTO] Auto-completing video ${currentVideoIndex}...`);
+            
+            // 現在の動画を完了として記録
+            const videoDuration = player && player.getDuration ? Math.floor(player.getDuration()) : 3600;
+            
+            // APIに完了イベントを送信
+            fetch('/api/video_view_event', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    playlist_id: PLAYLIST_ID,
+                    video_index: currentVideoIndex,
+                    event_type: 'complete',
+                    current_time: videoDuration
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`[AUTO] Video ${currentVideoIndex} marked as completed`);
+                if (data.status === 'success') {
+                    // UI を更新
+                    markVideoAsCompleted(currentVideoIndex);
+                    updateProgressBar();
+                }
+                
+                // 自動再生が有効な場合のみ次の動画を再生
+                if (autoPlaybackEnabled) {
+                    const nextIndex = currentVideoIndex + 1;
+                    if (nextIndex < ACTUAL_VIDEO_COUNT) {
+                        console.log(`[AUTO] Playing next video: ${nextIndex}`);
+                        setTimeout(() => {
+                            switchToVideo(nextIndex);
+                        }, 2000); // 2秒後に次の動画を再生
+                    } else {
+                        console.log(`[AUTO] All videos completed!`);
+                        alert('🎉 すべての動画が完了しました！');
+                    }
+                } else {
+                    console.log(`[AUTO] Auto-playback is disabled, waiting for manual next`);
+                }
+            })
+            .catch(error => {
+                console.error('[ERROR] Failed to mark video as completed:', error);
+            });
+        }
+        
+        // プレイヤーエラーハンドリング
+        function onPlayerError(event) {
+            // エラーコード: 2=invalid param, 5=HTML5 player error, 100=video not found, 101=video owner doesn't allow embedding, 150=same as 101
+            const errorCodes = {
+                2: 'Invalid parameter',
+                5: 'HTML5 player error',
+                100: 'Video not found',
+                101: 'Video owner doesn\'t allow embedding',
+                150: 'Video owner doesn\'t allow embedding'
+            };
+            
+            const errorMsg = errorCodes[event.data] || `Unknown error (${event.data})`;
+            console.error('[PLAYER ERROR]', errorMsg);
+            
+            // YouTube Ads エラーは無視
+            if (event.data === 2 || event.data === 5) {
+                console.log('[PLAYER] Minor error (ads or network related), continuing...');
+            }
+        }
+        
+        // 再生状態を定期的に監視
+        function startPlaybackMonitoring() {
+            setInterval(() => {
+                if (!player || !player.getPlayerState) return;
+                
+                const state = player.getPlayerState();
+                const YT_PLAYING = 1;
+                
+                // 再生中の場合、定期的に再生時間を記録
+                if (state === YT_PLAYING) {
+                    recordPlaybackTime();
+                }
+            }, 5000); // 5秒ごと
+        }
+        
+        // 再生時間を記録
+        function recordPlaybackTime() {
+            if (!player || !player.getCurrentTime) return;
+            
+            const currentTime = Math.floor(player.getCurrentTime());
+            const duration = player.getDuration ? Math.floor(player.getDuration()) : 0;
+            
+            if (duration > 0) {
+                console.log(`[WATCH] ${currentTime}s / ${duration}s (${Math.round(currentTime / duration * 100)}%)`);
+                sendVideoEvent('watch', currentTime);
+            }
+        }
+        
+        // 次の動画にスキップ
+        // 次の動画にスキップ
+        function skipToNextVideo() {
+            const nextIndex = currentVideoIndex + 1;
+            if (nextIndex < ACTUAL_VIDEO_COUNT) {
+                console.log(`[ACTION] Skipping to video ${nextIndex}`);
+                switchToVideo(nextIndex);
+            } else {
+                alert('プレイリストの最後に達しました');
+            }
+        }
+        
+        // 前の動画に戻す
+        function skipToPreviousVideo() {
+            const prevIndex = currentVideoIndex - 1;
+            if (prevIndex >= 0) {
+                console.log(`[ACTION] Going back to video ${prevIndex}`);
+                switchToVideo(prevIndex);
+            } else {
+                alert('プレイリストの最初です');
+            }
+        }
+        
+        // **新機能**: 自動再生の切り替え
+        function toggleAutoPlayback() {
+            autoPlaybackEnabled = !autoPlaybackEnabled;
+            const button = document.getElementById('autoPlayButton');
+            const statusText = autoPlaybackEnabled ? 'ON' : 'OFF';
+            const statusColor = autoPlaybackEnabled ? '#FF9800' : '#757575';
+            
+            button.textContent = `⏯ 自動再生: ${statusText}`;
+            button.style.background = statusColor;
+            
+            console.log(`[ACTION] Auto-playback toggled: ${statusText}`);
+            console.log(`[DEBUG] autoPlaybackEnabled = ${autoPlaybackEnabled}`);
+        }
+        
+        // 動画リストのアイテムをクリックして動画を切り替え
+        function switchToVideo(videoIndex) {
+            console.log(`[ACTION] ========== switchToVideo called with videoIndex=${videoIndex} ==========`);
+            
+            currentVideoIndex = videoIndex;
+            updateCurrentVideoUI();
+            
+            // 動画IDマップから対応する YouTube 動画IDを取得
+            const youtubeVideoId = VIDEO_ID_MAP[videoIndex];
+            
+            if (!youtubeVideoId) {
+                console.error(`[ERROR] No video ID found for index ${videoIndex}`);
+                alert(`動画 ${videoIndex + 1} の動画IDが見つかりません`);
+                return;
+            }
+            
+            console.log(`[ACTION] Switching to video ${videoIndex}: ${youtubeVideoId}`);
+            
+            // YT.Player インスタンスが存在する場合
+            if (player && player.loadVideoById) {
+                console.log(`[PLAYER] Using loadVideoById to auto-play new video`);
+                // loadVideoById は動画を自動再生する（loadVideoByIdはcueVideoByIdより確実に再生される）
+                player.loadVideoById(youtubeVideoId);
+                console.log(`[PLAYER] New video loaded and auto-playing`);
+            } else {
+                console.warn(`[WARN] Player not ready, waiting for API...`);
+                // APIがまだ準備できていない場合は後で試す
+                setTimeout(() => {
+                    if (player && player.loadVideoById) {
+                        console.log(`[PLAYER] Retrying loadVideoById after delay`);
+                        player.loadVideoById(youtubeVideoId);
+                    }
+                }, 500);
+            }
+            
+            sendVideoEvent('start');
+        }
+        
         
         // 動画再生イベントを送信
         async function sendVideoEvent(eventType, currentTime = 0) {
@@ -255,8 +569,17 @@
                 const data = await response.json();
                 if (data.status === 'success') {
                     console.log(`[API] Event ${eventType} recorded for video ${currentVideoIndex}`);
+                    
                     if (eventType === 'complete') {
-                        updateVideoUI(currentVideoIndex);
+                        // レスポンスに XP 情報が含まれていない場合はリロードして更新
+                        markVideoAsCompleted(currentVideoIndex);
+                        
+                        // サーバーから最新の XP を取得
+                        const xpData = data.xp_gained || null;
+                        if (xpData) {
+                            console.log(`[XP] Gained ${xpData} XP`);
+                            updateProgressBar();  // 進捗バーを再更新
+                        }
                     }
                 }
             } catch (error) {
@@ -264,14 +587,20 @@
             }
         }
         
-        // 動画リストを動的に生成（OEmbed メタデータから）
+        // 動画を完了済みとしてマーク
+        function markVideoAsCompleted(videoIndex) {
+            videoProgress[videoIndex] = true;
+            updateProgressBar();
+            updateVideoItemUI(videoIndex);
+        }
+        
+        // 動画リストを動的に生成
         async function loadPlaylistVideos() {
             try {
                 const container = document.getElementById('video-list-container');
                 
                 console.log(`[LOADING] Creating video list with ${ACTUAL_VIDEO_COUNT} videos`);
                 
-                // 実際のビデオ数を使用
                 const videoCount = ACTUAL_VIDEO_COUNT;
                 let html = '';
                 
@@ -282,10 +611,10 @@
                         <div class="video-item ${isCompleted} ${isCurrent}" data-video-index="${i}">
                             <div>
                                 <strong>動画 ${i + 1}</strong>
-                                ${videoProgress[i] ? '<span class="xp-badge">+50 XP</span>' : ''}
+                                ${videoProgress[i] ? `<span class="xp-badge">+${videoXPMap[i] || 100} XP</span>` : ''}
                             </div>
                             <div style="font-size: 0.75em; color: #999; margin-top: 3px;">
-                                ${videoProgress[i]?.watchCount ? '視聴: ' + videoProgress[i].watchCount + '回' : '未視聴'}
+                                ${videoProgress[i] ? '完了' : '未視聴'}
                             </div>
                         </div>
                     `;
@@ -294,16 +623,24 @@
                 container.innerHTML = html;
                 console.log(`[SUCCESS] Loaded ${videoCount} videos`);
                 
-                // 動画アイテムのクリックリスナーを追加
-                document.querySelectorAll('.video-item').forEach((item) => {
-                    item.addEventListener('click', function() {
-                        currentVideoIndex = parseInt(this.dataset.videoIndex);
-                        console.log('Switched to video:', currentVideoIndex);
-                        updateCurrentVideoUI();
-                        sendVideoEvent('start');
+                // イベントリスナーを動的に生成されたDOM要素にアタッチ
+                const items = document.querySelectorAll('.video-item');
+                console.log(`[DEBUG] Found ${items.length} video items to attach listeners`);
+                
+                items.forEach((item, idx) => {
+                    const videoIndex = parseInt(item.dataset.videoIndex);
+                    console.log(`[DEBUG] Item ${idx}: dataset.videoIndex=${item.dataset.videoIndex}, parsed=${videoIndex}`);
+                    
+                    item.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const clickedIndex = parseInt(item.dataset.videoIndex);
+                        console.log(`[CLICK] Video item #${idx} clicked: videoIndex=${clickedIndex}, currentVideoIndex was ${currentVideoIndex}`);
+                        switchToVideo(clickedIndex);
                     });
                 });
                 
+                console.log(`[LISTENERS] Attached click listeners to ${items.length} items`);
                 updateProgressBar();
             } catch (error) {
                 console.error('Error loading playlist videos:', error);
@@ -323,30 +660,80 @@
         
         // 現在の動画を UI で強調表示
         function updateCurrentVideoUI() {
-            document.querySelectorAll('.video-item').forEach((item, index) => {
+            document.querySelectorAll('.video-item').forEach((item) => {
+                const index = parseInt(item.dataset.videoIndex);
                 item.classList.toggle('current', index === currentVideoIndex);
             });
         }
         
+        // 特定の動画アイテムの UI を更新
+        function updateVideoItemUI(videoIndex) {
+            const item = document.querySelector(`.video-item[data-video-index="${videoIndex}"]`);
+            if (item) {
+                item.classList.add('completed');
+                // XP バッジを追加
+                const badge = item.querySelector('.xp-badge');
+                if (!badge) {
+                    const titleDiv = item.querySelector('div:first-child');
+                    titleDiv.innerHTML += '<span class="xp-badge">+50 XP</span>';
+                }
+                // ステータスを更新
+                const statusDiv = item.querySelector('div:last-child');
+                if (statusDiv) {
+                    statusDiv.textContent = '完了';
+                }
+            }
+        }
+        
         // ページロード時の初期化
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('[INIT] Initializing player...');
             console.log('[INIT] Loading playlist videos...');
             loadPlaylistVideos();
             
-            // 定期的に再生時間を記録（10秒ごと）
+            // YouTube プレイヤーの状態を定期的に監視
+            // videoseries の場合は、API から直接状態取得が困難なため
+            // ポーリング+postMessage を使用する
             setInterval(() => {
-                sendVideoEvent('watch', 0);
-            }, 10000);
+                if (playerReady && player) {
+                    try {
+                        // 現在の動画インデックスを更新（postMessage 経由）
+                        const iframe = document.getElementById('youtube-player');
+                        if (iframe) {
+                            // プレイヤーの状態を定期的にチェック
+                            recordPlaybackTime();
+                        }
+                    } catch (e) {
+                        console.log('[MONITORING] Polling skipped:', e.message);
+                    }
+                }
+            }, 3000);  // 3秒ごと
         });
         
-        // ウィンドウ閉じる際に完了イベントを送信
+        // ウィンドウ閉じる際に完了イベントを送信（実際の完了時刻を計算）
         window.addEventListener('beforeunload', () => {
-            sendVideoEvent('complete');
+            if (player && player.getCurrentTime) {
+                const currentTime = Math.floor(player.getCurrentTime());
+                if (currentTime > 0) {
+                    // 視聴終了時は完了イベントを送信
+                    // ただしnavigateawayなのでビーコンを使用
+                    navigator.sendBeacon('/api/video_view_event', JSON.stringify({
+                        playlist_id: PLAYLIST_ID,
+                        video_index: currentVideoIndex,
+                        event_type: 'watch',
+                        current_time: currentTime
+                    }));
+                }
+            }
         });
         
-        // ウィンドウ表示時に再生開始イベント
-        window.addEventListener('focus', () => {
-            console.log('[EVENT] Window focused');
+        // キーボードショートカット：右矢印でスキップ
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' && currentVideoIndex < ACTUAL_VIDEO_COUNT - 1) {
+                switchToVideo(currentVideoIndex + 1);
+            } else if (e.key === 'ArrowLeft' && currentVideoIndex > 0) {
+                switchToVideo(currentVideoIndex - 1);
+            }
         });
     </script>
 </body>

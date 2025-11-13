@@ -1114,6 +1114,54 @@ def fetch_youtube_playlist_info(playlist_id):
         return None
 
 
+def get_youtube_playlist_video_ids(playlist_id):
+    """
+    Extract all video IDs from a YouTube playlist using yt-dlp.
+    
+    Args:
+        playlist_id: YouTube playlist ID
+    
+    Returns:
+        List of video IDs or empty list if unable to determine
+    """
+    if not playlist_id:
+        return []
+    
+    try:
+        import yt_dlp
+        
+        # yt-dlp を使用してプレイリスト情報を抽出
+        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+        
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': 'in_playlist',  # プレイリスト内の動画をリスト形式で取得
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            print(f"[DEBUG] Extracting playlist: {playlist_url}")
+            info = ydl.extract_info(playlist_url, download=False)
+            
+            video_ids = []
+            if 'entries' in info:
+                for entry in info['entries']:
+                    if entry and 'id' in entry:
+                        video_ids.append(entry['id'])
+                        print(f"[DEBUG] Found video: {entry['id']}")
+            
+            print(f"[SUCCESS] Extracted {len(video_ids)} video IDs from playlist")
+            return video_ids
+    
+    except ImportError:
+        print(f"[ERROR] yt-dlp not installed. Install with: pip install yt-dlp")
+        return []
+    
+    except Exception as e:
+        print(f"[ERROR] Failed to get video IDs: {e}")
+        return []
+
+
 def get_youtube_playlist_video_count(playlist_id):
     """
     Get the actual number of videos in a YouTube playlist.
@@ -1247,7 +1295,7 @@ def youtube_playlist_process():
         
         if not playlist_id_or_url:
             flash("❌ プレイリストURL/IDを入力してください。", 'error')
-            return redirect(url_for('admin', _anchor='tab-youtube'))
+            return redirect(url_for('admin', _anchor='tab-youtube-management'))
         
         # プレイリストIDを抽出
         playlist_id = extract_playlist_id(playlist_id_or_url)
@@ -1320,9 +1368,10 @@ def youtube_player(playlist_id):
         db.session.add(view_history)
         db.session.commit()
     
-    # 実際のビデオ数を YouTube から取得
-    actual_video_count = get_youtube_playlist_video_count(playlist.playlist_id)
-    print(f"[INFO] Playlist {playlist.playlist_id}: actual_video_count={actual_video_count}")
+    # プレイリストから動画IDを抽出
+    video_ids = get_youtube_playlist_video_ids(playlist.playlist_id)
+    actual_video_count = len(video_ids)
+    print(f"[INFO] Playlist {playlist.playlist_id}: extracted {actual_video_count} video IDs")
     
     # 視聴情報を取得
     video_views = VideoView.query.filter_by(playlist_id=playlist_id).order_by(VideoView.video_index).all()
@@ -1332,11 +1381,32 @@ def youtube_player(playlist_id):
         "youtube_player.html",
         playlist=playlist,
         video_views=video_views,
+        video_ids=video_ids,  # 動画IDリストをテンプレートに渡す
         completed_count=completed_count,
         total_count=len(video_views),
         actual_video_count=actual_video_count or 10,  # Fallback to 10 if unable to fetch
         current_index=view_history.video_index or 0
     )
+
+
+
+@app.route("/api/playlist_videos/<int:playlist_id>", methods=["GET"])
+def api_playlist_videos(playlist_id):
+    """プレイリストの動画IDリストをJSON形式で返す"""
+    playlist = YouTubePlaylist.query.get(playlist_id)
+    if not playlist:
+        return jsonify({"status": "error", "message": "Playlist not found"}), 404
+    
+    # プレイリストからビデオIDを取得
+    video_ids = get_youtube_playlist_video_ids(playlist.playlist_id)
+    
+    return jsonify({
+        "status": "success",
+        "playlist_id": playlist_id,
+        "youtube_playlist_id": playlist.playlist_id,
+        "video_count": len(video_ids),
+        "video_ids": video_ids
+    })
 
 
 @app.route("/api/video_view_event", methods=["POST"])
@@ -1369,11 +1439,26 @@ def video_view_event():
                 video_view.first_viewed = datetime.utcnow()
         
         elif event_type == "watch":
-            video_view.watched_duration_seconds = (video_view.watched_duration_seconds or 0) + int(current_time)
+            # current_time は現在の再生位置（秒）
+            # 最後に記録した再生位置より進んでいる場合のみ更新
+            current_watched = video_view.watched_duration_seconds or 0
+            if int(current_time) > current_watched:
+                # 新しい最大再生位置を記録
+                video_view.watched_duration_seconds = int(current_time)
         
         elif event_type == "complete":
             video_view.is_completed = True
-            video_view.xp_gained = 50  # 基本XP
+            
+            # 動画の長さからXPを計算
+            # current_time に再生時間（秒）が渡されている想定
+            video_duration_seconds = current_time
+            
+            # 基本計算: 1時間 (3600秒) = 100 XP
+            # 最小10XP、最大500XPの上限
+            calculated_xp = max(10, min(500, int(video_duration_seconds / 36)))  # 3600秒/100 = 36
+            
+            video_view.xp_gained = calculated_xp
+            print(f"[XP CALC] Video {video_index} duration: {video_duration_seconds}s -> XP: {calculated_xp}")
             
             # PlaylistViewHistory を更新
             view_history = PlaylistViewHistory.query.filter_by(playlist_id=playlist_id).first()
@@ -1384,10 +1469,40 @@ def video_view_event():
         video_view.last_viewed = datetime.utcnow()
         db.session.commit()
         
-        return jsonify({"status": "success", "video_view_id": video_view.id})
+        # レスポンスに XP 情報を含める
+        response_data = {
+            "status": "success", 
+            "video_view_id": video_view.id,
+            "xp_gained": video_view.xp_gained
+        }
+        
+        return jsonify(response_data)
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/reset_youtube_playlist_progress/<int:id>", methods=["POST"])
+def reset_youtube_playlist_progress(id):
+    """Reset progress for all videos in a YouTube playlist."""
+    try:
+        playlist = YouTubePlaylist.query.get(id)
+        if not playlist:
+            flash("❌ プレイリストが見つかりません。", "error")
+            return redirect(url_for("admin", _anchor="tab-youtube"))
+        
+        # Delete all VideoView records for this playlist
+        deleted_count = VideoView.query.filter_by(playlist_id=id).delete()
+        db.session.commit()
+        
+        flash(f"✅ {deleted_count}件の進捗をリセットしました。", "success")
+        print(f"[INFO] Reset {deleted_count} video views for playlist: {playlist.playlist_id}")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ リセットエラー: {e}", "error")
+        print(f"[ERROR] Reset progress error: {e}")
+
+    return redirect(url_for("admin", _anchor="tab-youtube"))
 
 
 @app.route("/delete_youtube_playlist/<int:id>", methods=["POST"])
