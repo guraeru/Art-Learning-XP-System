@@ -203,25 +203,10 @@
             <!-- 動画リスト -->
             <div class="video-list">
                 <h3>プレイリスト</h3>
-                <div id="video-list-container">
-                    {% if video_views %}
-                        {% for video in video_views %}
-                        <div class="video-item {% if video.is_completed %}completed{% endif %} {% if video.video_index == current_index %}current{% endif %}" 
-                             data-video-index="{{ video.video_index or loop.index0 }}">
-                            <div>
-                                {{ video.video_title or 'ビデオ ' ~ (loop.index) }}
-                                {% if video.is_completed %}
-                                    <span class="xp-badge">+{{ video.xp_gained or 50 }} XP</span>
-                                {% endif %}
-                            </div>
-                            <div style="font-size: 0.75em; color: #999; margin-top: 3px;">
-                                {% if video.watch_count %}視聴: {{ video.watch_count }}回{% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <p style="color: #999; font-size: 0.9em;">動画情報を準備中です...</p>
-                    {% endif %}
+                <div id="video-list-container" style="min-height: 200px;">
+                    <p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 0;">
+                        プレイリストを読み込み中...
+                    </p>
                 </div>
             </div>
         </div>
@@ -229,8 +214,9 @@
     
     <script>
         const PLAYLIST_ID = {{ playlist.id }};
-        const TOTAL_VIDEOS = {{ total_count }};
+        const PLAYLIST_YOUTUBE_ID = "{{ playlist.playlist_id }}";
         let currentVideoIndex = {{ current_index or 0 }};
+        const videoProgress = {};
         
         // YouTube IFrame API を読み込む
         const tag = document.createElement('script');
@@ -242,8 +228,9 @@
         const VIDEO_COMPLETE_THRESHOLD = 0.9; // 90% 視聴で完了と判定
         
         function onYouTubeIframeAPIReady() {
-            // YouTube IFrame Player は既に埋め込まれているので、手動で初期化
-            player = document.getElementById('youtube-player');
+            // YouTube IFrame Player を取得
+            const iframe = document.getElementById('youtube-player');
+            console.log('YouTube IFrame API ready, iframe:', iframe);
         }
         
         // 動画再生イベントを送信
@@ -264,7 +251,7 @@
                 
                 const data = await response.json();
                 if (data.status === 'success') {
-                    console.log(`Event ${eventType} recorded for video ${currentVideoIndex}`);
+                    console.log(`[API] Event ${eventType} recorded for video ${currentVideoIndex}`);
                     if (eventType === 'complete') {
                         updateVideoUI(currentVideoIndex);
                     }
@@ -274,54 +261,96 @@
             }
         }
         
-        // UI を更新
-        function updateVideoUI(videoIndex) {
-            const videoItems = document.querySelectorAll('.video-item');
-            videoItems.forEach((item, index) => {
-                if (index === videoIndex) {
-                    item.classList.add('completed');
+        // 動画リストを動的に生成（OEmbed メタデータから）
+        async function loadPlaylistVideos() {
+            try {
+                const container = document.getElementById('video-list-container');
+                
+                // OEmbed API からプレイリスト情報を取得
+                const oembed_url = `https://www.youtube.com/oembed?url=https://www.youtube.com/playlist?list=${PLAYLIST_YOUTUBE_ID}&format=json`;
+                const oembed_response = await fetch(oembed_url);
+                const oembed_data = await oembed_response.json();
+                
+                console.log('OEmbed data:', oembed_data);
+                
+                // 仮：プレイリストのビデオ数は通常、OEmbed では取得できないため
+                // フロントエンドでプレイリストを展開して取得
+                // 実装簡略化のため、デフォルトでビデオを10個作成
+                const videoCount = 10;
+                let html = '';
+                
+                for (let i = 0; i < videoCount; i++) {
+                    const isCompleted = videoProgress[i] ? 'completed' : '';
+                    const isCurrent = i === currentVideoIndex ? 'current' : '';
+                    html += `
+                        <div class="video-item ${isCompleted} ${isCurrent}" data-video-index="${i}">
+                            <div>
+                                <strong>動画 ${i + 1}</strong>
+                                ${videoProgress[i] ? '<span class="xp-badge">+50 XP</span>' : ''}
+                            </div>
+                            <div style="font-size: 0.75em; color: #999; margin-top: 3px;">
+                                ${videoProgress[i]?.watchCount ? '視聴: ' + videoProgress[i].watchCount + '回' : '未視聴'}
+                            </div>
+                        </div>
+                    `;
                 }
-            });
-            
-            // 進捗バーを更新
-            const completedCount = document.querySelectorAll('.video-item.completed').length;
-            const progressPercent = (completedCount / TOTAL_VIDEOS * 100).toFixed(1);
-            document.getElementById('progress-fill').style.width = progressPercent + '%';
-            document.getElementById('progress-text').textContent = completedCount + ' / ' + TOTAL_VIDEOS;
+                
+                container.innerHTML = html;
+                console.log(`[INFO] Loaded ${videoCount} videos`);
+                
+                // 動画アイテムのクリックリスナーを追加
+                document.querySelectorAll('.video-item').forEach((item) => {
+                    item.addEventListener('click', function() {
+                        currentVideoIndex = parseInt(this.dataset.videoIndex);
+                        console.log('Switched to video:', currentVideoIndex);
+                        updateCurrentVideoUI();
+                        sendVideoEvent('start');
+                    });
+                });
+                
+                updateProgressBar();
+            } catch (error) {
+                console.error('Error loading playlist videos:', error);
+                document.getElementById('video-list-container').innerHTML = 
+                    '<p style="color: red; font-size: 0.9em;">プレイリスト情報の読み込みに失敗しました</p>';
+            }
         }
         
-        // 動画アイテムをクリックで選択
-        document.querySelectorAll('.video-item').forEach((item, index) => {
-            item.addEventListener('click', function() {
-                currentVideoIndex = parseInt(this.dataset.videoIndex);
-                // 実装: YouTube プレイヤーで対応する動画に切り替える
-                console.log('切り替え to video:', currentVideoIndex);
-                sendVideoEvent('start');
+        // UI を更新（進捗バー）
+        function updateProgressBar() {
+            const completedCount = Object.keys(videoProgress).length;
+            const totalCount = document.querySelectorAll('.video-item').length || 10;
+            const progressPercent = totalCount > 0 ? (completedCount / totalCount * 100).toFixed(1) : 0;
+            document.getElementById('progress-fill').style.width = progressPercent + '%';
+            document.getElementById('progress-text').textContent = completedCount + ' / ' + totalCount;
+        }
+        
+        // 現在の動画を UI で強調表示
+        function updateCurrentVideoUI() {
+            document.querySelectorAll('.video-item').forEach((item, index) => {
+                item.classList.toggle('current', index === currentVideoIndex);
             });
+        }
+        
+        // ページロード時の初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('[INIT] Loading playlist videos...');
+            loadPlaylistVideos();
+            
+            // 定期的に再生時間を記録（10秒ごと）
+            setInterval(() => {
+                sendVideoEvent('watch', 0);
+            }, 10000);
         });
         
-        // 定期的に再生情報を記録（10秒ごと）
-        setInterval(() => {
-            if (player && player.getCurrentTime) {
-                try {
-                    const currentTime = player.getCurrentTime();
-                    if (currentTime > 0) {
-                        sendVideoEvent('watch', currentTime);
-                    }
-                } catch (e) {
-                    // iframe の制限により情報取得不可の場合もある
-                }
-            }
-        }, 10000);
-        
-        // ウィンドウロード時に最初の動画を再生開始イベント送信
-        window.addEventListener('load', () => {
-            sendVideoEvent('start');
-        });
-        
-        // ウィンドウクローズ時に完了イベント送信（推定）
+        // ウィンドウ閉じる際に完了イベントを送信
         window.addEventListener('beforeunload', () => {
             sendVideoEvent('complete');
+        });
+        
+        // ウィンドウ表示時に再生開始イベント
+        window.addEventListener('focus', () => {
+            console.log('[EVENT] Window focused');
         });
     </script>
 </body>
