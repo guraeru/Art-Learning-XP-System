@@ -1,90 +1,108 @@
-# app.py - 今日のお題 (記念日API) + 注目のタグ (AppAPI) + 人気作品からの画像検索 (R-18除外強化) + 【🌟キャッシュ機能追加🌟】
+"""
+Art Learning XP System - Flask Application
+
+A comprehensive learning management system for artists featuring:
+- XP-based learning progress tracking
+- Pixiv integration for inspiration and trending content
+- Book and resource library management
+- YouTube playlist integration
+- Mobile-friendly responsive interface
+"""
+
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify
+import re
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    send_from_directory,
+    jsonify,
+    current_app,
+)
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
-from sqlalchemy import func, select 
-import requests 
-import pytz 
+from sqlalchemy import func, select
+import requests
+import pytz
 import fitz
-from flask import current_app
 
-# ユーザー提供のファイルからインポート
-# 💡 models.pyからBookとResourceLinkをインポート
-from models import db, UserStatus, Record, Book, ResourceLink
+from models import db, UserStatus, Record, Book, ResourceLink, YouTubePlaylist
 from xp_core import XPCalculator, Constants
 
-# --- 設定 ---
-UPLOAD_FOLDER = 'static/uploads'
-# 💡 PDF/ePubを許可に追加
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'epub'} 
-DATABASE_FILE = 'xp_system.db'
-ASSETS_FOLDER = 'static/assets' 
+# --- Configuration Constants ---
+UPLOAD_FOLDER = "static/uploads"
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf", "epub"}
+DATABASE_FILE = "xp_system.db"
+ASSETS_FOLDER = "static/assets"
+AUTH_FILE = "auth.key"
 
-# Pixiv認証情報ファイル名 (AppAPI用)
-AUTH_FILE = 'auth.key' 
-
-# Pixiv APIエンドポイントと認証情報
+# Pixiv API Configuration
 PIXIV_CLIENT_ID = "MOBrBDS8blbauoSck0ZfDbtuzpyT"
 PIXIV_CLIENT_SECRET = "lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj"
-PIXIV_AUTH_URL = "https://oauth.secure.pixiv.net/auth/token" 
+PIXIV_AUTH_URL = "https://oauth.secure.pixiv.net/auth/token"
 PIXIV_WEB_HOST = "https://www.pixiv.net"
-
-# 【Pixiv 記念日お題 API エンドポイント】
 PIXIV_ANNIVERSARY_API_URL = f"{PIXIV_WEB_HOST}/ajax/idea/anniversary"
-# 【AppAPI トレンドタグエンドポイント】(注目のタグ用)
 PIXIV_TREND_APP_API_URL = "https://app-api.pixiv.net/v1/trending-tags/illust"
 
+# User Agent Settings
+OAUTH_PIXIV_USER_AGENT = "PixivAndroidApp/5.0.147 (Android/10)"
+WEB_PIXIV_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
-# User-Agentの定義
-OAUTH_PIXIV_USER_AGENT = 'PixivAndroidApp/5.0.147 (Android/10)' 
-WEB_PIXIV_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' 
+# Cache Settings
+CACHE_DURATION = timedelta(minutes=30)
 
+# Timezone
 jp = pytz.timezone("Asia/Tokyo")
 
-
+# Flask Application Setup
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_secret_key_here' 
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATABASE_FILE}'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# 💡 ファイルサイズ制限を256MBに引き上げ
-app.config['MAX_CONTENT_LENGTH'] = 256 * 1024 * 1024 
+app.config["SECRET_KEY"] = "your_secret_key_here"
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DATABASE_FILE}"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # 256 MB max file size
 
 db.init_app(app)
 
-# --- 🌟 Pixiv情報キャッシュ変数の定義 🌟 ---
+# --- Global Cache and Authentication State ---
 _pixiv_cache = None
-# キャッシュの有効期限 (初期値は過去)
-_cache_expiry = datetime.min 
-# キャッシュの有効時間（例：30分）
-CACHE_DURATION = timedelta(minutes=30) 
-# ---------------------------------------------
+_cache_expiry = datetime.min
+_access_token = None
+_token_expires_at = datetime.min
+_refresh_token = None
 
-# フォルダ確認とプレースホルダー作成 (省略)
-for folder in [UPLOAD_FOLDER, ASSETS_FOLDER]:
-    if not os.path.exists(folder):
-        try:
-            # os.makedirsは、途中のディレクトリ（staticなど）も作成します
-            os.makedirs(folder)
-            print(f"✅ 必要なフォルダ '{folder}' を作成しました。")
-        except OSError as e:
-            print(f"⚠️ フォルダ '{folder}' の作成に失敗しました: {e}")
-            # エラー発生時はアプリケーションの実行環境を確認してください
+
+# --- Directory Initialization ---
+def _init_directories():
+    """Create necessary directories if they don't exist."""
+    for folder in [UPLOAD_FOLDER, ASSETS_FOLDER]:
+        if not os.path.exists(folder):
+            try:
+                os.makedirs(folder)
+                print(f"✅ Created directory: {folder}")
+            except OSError as e:
+                print(f"⚠️ Failed to create directory {folder}: {e}")
+
+
+_init_directories()
 
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    """Check if file extension is allowed."""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# --- 初期設定 ---
+
+# --- Database Initialization ---
 with app.app_context():
     db.create_all()
     if not UserStatus.query.first():
         db.session.add(UserStatus(username="イラスト・クリエイター"))
         db.session.commit()
 
-# --- Pixiv認証とWebセッション取得のためのグローバル変数/関数 ---
-_access_token = None
+
+# --- Pixiv API Authentication ---
 _token_expires_at = datetime.min
 _refresh_token = None
 _session_cookie = None 
@@ -444,6 +462,10 @@ def index():
     # 💡 index.htmlに外部リンクのリストを渡す
     recent_links = get_recent_links(limit=5)
     
+    # YouTube再生リストを取得
+    youtube_playlists_result = db.session.execute(db.select(YouTubePlaylist).order_by(YouTubePlaylist.added_date.desc()))
+    youtube_playlists = youtube_playlists_result.scalars().all()
+    
     context = {
         'status': status,
         'xp_rates': Constants.XP_RATES_PER_MINUTE,
@@ -452,6 +474,7 @@ def index():
         'total_time_hours': status['total_time_hours'],
         'total_time_minutes': status['total_time_minutes'] % 60,
         'recent_links': recent_links, # 💡 追加
+        'youtube_playlists': youtube_playlists,  # 💡 YouTube再生リスト追加
     }
 
     return render_template('index.html', **context)
@@ -644,7 +667,7 @@ def resources():
 # 💡 新規ルーティング: 管理コンソール
 @app.route('/admin')
 def admin():
-    """管理コンソール: 書籍と外部リンクのCRUD操作を提供します。"""
+    """管理コンソール: 書籍と外部リンク、YouTube再生リストのCRUD操作を提供します。"""
     
     books_result = db.session.execute(db.select(Book).order_by(Book.id.asc()))
     books = books_result.scalars().all()
@@ -652,10 +675,14 @@ def admin():
     links_result = db.session.execute(db.select(ResourceLink).order_by(ResourceLink.id.asc()))
     links = links_result.scalars().all()
     
+    youtube_playlists_result = db.session.execute(db.select(YouTubePlaylist).order_by(YouTubePlaylist.id.asc()))
+    youtube_playlists = youtube_playlists_result.scalars().all()
+    
     context = {
         'status': get_current_status(),
         'books': books,
         'links': links,
+        'youtube_playlists': youtube_playlists,
     }
     return render_template('admin.html', **context)
 
@@ -1009,6 +1036,214 @@ def api_time_analysis(period):
 def uploaded_file(filename):
     """アップロードされた作品画像や書籍ファイルを公開します。"""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+# --- YouTube Playlist Management ---
+
+
+def extract_playlist_id(url_or_id):
+    """
+    Extract YouTube playlist ID from URL or ID string.
+
+    Args:
+        url_or_id: YouTube URL or playlist ID (e.g., PLxxxxxx)
+
+    Returns:
+        Extracted playlist ID or None if invalid
+    """
+    if not url_or_id:
+        return None
+
+    # Extract from URL
+    if "youtube.com" in url_or_id or "youtu.be" in url_or_id:
+        match = re.search(r"[?&]list=([a-zA-Z0-9_-]+)", url_or_id)
+        if match:
+            return match.group(1)
+
+    # Validate ID format
+    if re.match(r"^[a-zA-Z0-9_-]+$", url_or_id):
+        return url_or_id
+
+    return None
+
+
+def fetch_youtube_playlist_info(playlist_id):
+    """
+    Fetch YouTube playlist information using OEmbed API.
+    
+    Returns playlist metadata including title and thumbnail embed code.
+    This works for all playlists including limited distribution.
+    
+    Args:
+        playlist_id: YouTube playlist ID (e.g., PLxxxxxx)
+    
+    Returns:
+        Dict with 'title', 'author', 'thumbnail_url' (embed iframe HTML) or None
+    """
+    if not playlist_id:
+        return None
+    
+    try:
+        # Use YouTube OEmbed API - works for all playlists
+        oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/playlist?list={playlist_id}&format=json"
+        response = requests.get(oembed_url, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extract title and author
+            title = data.get('title', f'Playlist ({playlist_id[:8]}...)')
+            author = data.get('author_name', 'YouTube')
+            
+            # For playlist embeds, we'll use the HTML embed code as thumbnail
+            # This displays the playlist embed preview
+            html_code = data.get('html', '')
+            
+            print(f"[SUCCESS] Playlist info fetched: title={title}, author={author}")
+            
+            return {
+                'title': title,
+                'author': author,
+                'thumbnail_html': html_code,  # Embed iframe HTML
+                'playlist_id': playlist_id,
+            }
+        else:
+            print(f"[WARN] OEmbed failed with status {response.status_code}")
+    
+    except requests.exceptions.Timeout:
+        print(f"[WARN] Timeout fetching playlist {playlist_id}")
+    except Exception as e:
+        print(f"[ERROR] Error fetching playlist info ({playlist_id}): {e}")
+    
+    return None
+    """
+    Fetch YouTube video thumbnail from video ID.
+
+    Strategy:
+    1. Use standard YouTube thumbnail CDN URLs
+    2. Try multiple quality levels
+    3. Return URL or None if unable to fetch
+
+    Args:
+        video_id: YouTube video ID (format: dQw4w9WgXcQ)
+
+    Returns:
+        Thumbnail URL string or None if invalid video_id
+    """
+    if not video_id:
+        return None
+
+    try:
+        # YouTube thumbnail CDN URLs (highest quality first)
+        thumbnail_urls = [
+            f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+            f"https://i.ytimg.com/vi/{video_id}/sddefault.jpg",
+            f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+            f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+            f"https://i.ytimg.com/vi/{video_id}/default.jpg",
+        ]
+
+        for thumbnail_url in thumbnail_urls:
+            try:
+                response = requests.head(thumbnail_url, timeout=3, allow_redirects=True)
+                if response.status_code == 200:
+                    print(f"[SUCCESS] Thumbnail found: {thumbnail_url}")
+                    return thumbnail_url
+            except requests.exceptions.RequestException:
+                continue
+
+        print(f"[WARN] Thumbnail not found for video: {video_id}")
+
+    except Exception as e:
+        print(f"[ERROR] Thumbnail fetch error ({video_id}): {e}")
+
+    return None
+
+
+@app.route("/youtube_playlist_process", methods=["POST"])
+def youtube_playlist_process():
+    """Register or update YouTube playlist using OEmbed API."""
+    try:
+        playlist_id_or_url = request.form.get('playlist_id_or_url', '').strip()
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        
+        if not playlist_id_or_url:
+            flash("❌ プレイリストURL/IDを入力してください。", 'error')
+            return redirect(url_for('admin', _anchor='tab-youtube'))
+        
+        # プレイリストIDを抽出
+        playlist_id = extract_playlist_id(playlist_id_or_url)
+        if not playlist_id:
+            flash("❌ 有効なYouTubeプレイリストURL/IDではありません。", "error")
+            return redirect(url_for("admin", _anchor="tab-youtube"))
+        
+        # OEmbed API でプレイリスト情報を取得
+        print(f"[INFO] Fetching playlist info for: {playlist_id}")
+        playlist_info = fetch_youtube_playlist_info(playlist_id)
+        
+        if not playlist_info:
+            flash("❌ プレイリスト情報を取得できませんでした。プレイリストIDが正しいか確認してください。", "error")
+            return redirect(url_for("admin", _anchor="tab-youtube"))
+        
+        # プレイリスト情報の取得
+        oembed_title = playlist_info.get('title', f'Playlist ({playlist_id[:8]}...)')
+        thumbnail_html = playlist_info.get('thumbnail_html', '')
+        
+        # ユーザーが入力したタイトルが優先、なければOEmbedから取得
+        final_title = title if title else oembed_title
+        
+        # 既存プレイリストの確認
+        existing = YouTubePlaylist.query.filter_by(playlist_id=playlist_id).first()
+        
+        if existing:
+            # 更新
+            existing.title = final_title
+            existing.description = description or existing.description
+            if thumbnail_html:
+                existing.thumbnail_url = thumbnail_html
+            db.session.commit()
+            print(f"[INFO] Playlist updated: {playlist_id}")
+            flash("✅ プレイリストを更新しました。", "success")
+        else:
+            # 新規登録
+            print(f"[INFO] Creating new playlist: {playlist_id}")
+            new_playlist = YouTubePlaylist(
+                playlist_id=playlist_id,
+                title=final_title,
+                description=description,
+                thumbnail_url=thumbnail_html,
+            )
+            db.session.add(new_playlist)
+            db.session.commit()
+            print(f"[INFO] Playlist created: id={new_playlist.id}")
+            flash("✅ プレイリストを登録しました。", "success")
+        
+        return redirect(url_for("admin", _anchor="tab-youtube"))
+    
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ エラー: {e}", "error")
+        print(f"[ERROR] {e}")
+        return redirect(url_for("admin", _anchor="tab-youtube"))
+
+
+
+@app.route("/delete_youtube_playlist/<int:id>", methods=["POST"])
+def delete_youtube_playlist(id):
+    """Delete YouTube playlist."""
+    try:
+        playlist = YouTubePlaylist.query.get(id)
+        if playlist:
+            db.session.delete(playlist)
+            db.session.commit()
+            flash("✅ プレイリストを削除しました。", "success")
+        else:
+            flash("❌ プレイリストが見つかりません。", "error")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ 削除エラー: {e}", "error")
+
+    return redirect(url_for("admin", _anchor="tab-youtube"))
 
 
 if __name__ == '__main__':

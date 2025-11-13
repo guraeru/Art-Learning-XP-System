@@ -1,7 +1,7 @@
 @echo off
 
-:: conda環境を利用する場合
-::call "%USERPROFILE%\anaconda3\condabin\conda.bat" activate "任意の環境"
+:: conda環境をアクティブにする
+call "%USERPROFILE%\anaconda3\condabin\conda.bat" activate base
 
 :: スクリプトを実行
 python app.py

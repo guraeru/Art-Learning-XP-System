@@ -8,6 +8,7 @@
     <div class="tabs mb-4">
         <button class="tab-button btn-primary" data-tab="book-management">📚 書籍管理</button>
         <button class="tab-button btn-secondary" data-tab="link-management">🔗 外部リンク管理</button>
+        <button class="tab-button btn-secondary" data-tab="youtube-management">🎬 YouTube再生リスト</button>
         <button class="tab-button btn-secondary" data-tab="user-management">👤 ユーザー設定</button>
     </div>
 
@@ -180,6 +181,100 @@
         </div>
     </div>
     
+    <div id="tab-youtube-management" class="tab-content card" style="display: none;">
+        <h3 class="card-title">YouTube再生リストの新規登録・編集</h3>
+        
+        <form action="{{ url_for('youtube_playlist_process') }}" method="POST" class="form-grid">
+            <input type="hidden" name="id" id="youtube_id">
+
+            <div class="form-group">
+                <label for="youtube_playlist_id">プレイリストID/URL (必須):</label>
+                <input type="text" name="playlist_id_or_url" id="youtube_playlist_id" required 
+                       placeholder="https://www.youtube.com/playlist?list=PLxxxxxx または PLxxxxxx">
+                <p class="small text-muted mt-1">※ YouTubeプレイリストのURLまたはIDを入力してください。</p>
+            </div>
+
+            <div class="form-group">
+                <label for="youtube_title">タイトル (任意):</label>
+                <input type="text" name="title" id="youtube_title" placeholder="例: イラスト技法チュートリアル">
+                <p class="small text-muted mt-1">※ 空白の場合はプレイリストのタイトルを自動取得します。</p>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="youtube_description">説明/メモ (任意):</label>
+                <textarea name="description" id="youtube_description" rows="3" 
+                          placeholder="このプレイリストについてのメモを入力"></textarea>
+            </div>
+
+            <div class="form-group full-width text-end">
+                <button type="submit" class="btn-primary" id="youtube-submit-btn">
+                    <i class="fas fa-plus"></i> プレイリストを登録
+                </button>
+                <button type="button" class="btn-secondary" id="youtube-clear-btn" style="display: none;">
+                    <i class="fas fa-times"></i> キャンセル
+                </button>
+            </div>
+        </form>
+
+        <h3 class="card-title mt-5">登録済みプレイリスト一覧</h3>
+        
+        <div class="modern-table-wrapper">
+        <table class="table-list modern-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">サムネイル</th>
+                    <th>ID</th>
+                    <th>タイトル</th>
+                    <th>プレイリストID</th>
+                    <th>説明</th>
+                    <th style="width: 180px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for playlist in youtube_playlists %}
+                <tr data-youtube-id="{{ playlist.id }}"
+                    data-playlist-id="{{ playlist.playlist_id }}"
+                    data-title="{{ playlist.title }}"
+                    data-thumbnail="{{ playlist.thumbnail_url | default('') }}"
+                    data-description="{{ playlist.description | default('') }}">
+                    <td style="text-align: center; padding: 8px;">
+                        {% if playlist.thumbnail_url %}
+                            <img src="{{ playlist.thumbnail_url }}" 
+                                 alt="{{ playlist.title }}" 
+                                 loading="lazy"
+                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
+                        {% else %}
+                            <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.2em;">🎬</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ playlist.id }}</td>
+                    <td class="table-title">{{ playlist.title }}</td>
+                    <td>
+                        <a href="https://www.youtube.com/playlist?list={{ playlist.playlist_id }}" 
+                           target="_blank" rel="noopener noreferrer" class="text-link">
+                            {{ playlist.playlist_id | truncate(20, True, '...') }}
+                        </a>
+                    </td>
+                    <td>{{ playlist.description | default('-') | truncate(25, True, '...') }}</td>
+                    <td>
+                        <button class="btn-secondary btn-sm edit-youtube-btn" type="button">
+                            <i class="fas fa-pen"></i> 編集
+                        </button>
+                        <form action="{{ url_for('delete_youtube_playlist', id=playlist.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('本当にこのプレイリストを削除しますか？');">
+                            <button class="btn-danger btn-sm" type="submit">
+                                <i class="fas fa-trash"></i> 削除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center">まだプレイリストは登録されていません。</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    
     <div id="tab-user-management" class="tab-content card" style="display: none;">
         <h3 class="card-title">ユーザー名の変更</h3>
         <form action="{{ url_for('update_username') }}" method="POST">
@@ -305,6 +400,35 @@
                 linkSubmitBtn.innerHTML = '<i class="fas fa-plus"></i> リンクを登録';
                 linkSubmitBtn.classList.replace('btn-secondary', 'btn-primary');
                 linkClearBtn.style.display = 'none';
+            });
+
+            // --- 4. YouTube再生リスト編集機能 ---
+            const youtubeForm = document.querySelector('form[action*="youtube_playlist_process"]');
+            const youtubeSubmitBtn = document.getElementById('youtube-submit-btn');
+            const youtubeClearBtn = document.getElementById('youtube-clear-btn');
+
+            document.querySelectorAll('.edit-youtube-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tr = this.closest('tr');
+                    document.getElementById('youtube_id').value = tr.dataset.youtubeId;
+                    document.getElementById('youtube_playlist_id').value = tr.dataset.playlistId;
+                    document.getElementById('youtube_title').value = tr.dataset.title;
+                    document.getElementById('youtube_description').value = tr.dataset.description;
+                    
+                    youtubeSubmitBtn.innerHTML = '<i class="fas fa-save"></i> プレイリストを更新';
+                    youtubeSubmitBtn.classList.replace('btn-primary', 'btn-secondary');
+                    youtubeClearBtn.style.display = 'inline-flex';
+                    
+                    youtubeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
+            
+            youtubeClearBtn.addEventListener('click', function() {
+                youtubeForm.reset();
+                document.getElementById('youtube_id').value = '';
+                youtubeSubmitBtn.innerHTML = '<i class="fas fa-plus"></i> プレイリストを登録';
+                youtubeSubmitBtn.classList.replace('btn-secondary', 'btn-primary');
+                youtubeClearBtn.style.display = 'none';
             });
         });
     </script>
