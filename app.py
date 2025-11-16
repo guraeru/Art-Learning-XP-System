@@ -1078,16 +1078,16 @@ def extract_playlist_id(url_or_id):
 
 def fetch_youtube_playlist_info(playlist_id):
     """
-    Fetch YouTube playlist information using OEmbed API.
+    Fetch YouTube playlist information using OEmbed API and yt-dlp.
     
-    Returns playlist metadata including title and thumbnail embed code.
+    Returns playlist metadata including title and thumbnail image URL.
     This works for all playlists including limited distribution.
     
     Args:
         playlist_id: YouTube playlist ID (e.g., PLxxxxxx)
     
     Returns:
-        Dict with 'title', 'author', 'thumbnail_url' (embed iframe HTML) or None
+        Dict with 'title', 'author', 'thumbnail_url' (image URL) or None
     """
     if not playlist_id:
         return None
@@ -1104,16 +1104,38 @@ def fetch_youtube_playlist_info(playlist_id):
             title = data.get('title', f'Playlist ({playlist_id[:8]}...)')
             author = data.get('author_name', 'YouTube')
             
-            # For playlist embeds, we'll use the HTML embed code as thumbnail
-            # This displays the playlist embed preview
-            html_code = data.get('html', '')
+            # Get thumbnail image URL from the first video in the playlist
+            thumbnail_url = None
+            try:
+                import yt_dlp
+                playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+                ydl_opts = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extract_flat': 'in_playlist',
+                    'playlistend': 1,  # Only get the first video
+                }
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(playlist_url, download=False)
+                    if 'entries' in info and info['entries']:
+                        first_video = info['entries'][0]
+                        if first_video and 'id' in first_video:
+                            video_id = first_video['id']
+                            # Use standard YouTube thumbnail URL
+                            thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+                            print(f"[SUCCESS] Thumbnail URL from first video: {thumbnail_url}")
+            except Exception as e:
+                print(f"[WARN] Failed to get playlist thumbnail from yt-dlp: {e}")
+                # Fallback: use a generic YouTube icon or placeholder
+                thumbnail_url = None
             
             print(f"[SUCCESS] Playlist info fetched: title={title}, author={author}")
             
             return {
                 'title': title,
                 'author': author,
-                'thumbnail_html': html_code,  # Embed iframe HTML
+                'thumbnail_url': thumbnail_url,  # Image URL instead of iframe HTML
                 'playlist_id': playlist_id,
             }
         else:
@@ -1380,7 +1402,7 @@ def youtube_playlist_process():
         
         # プレイリスト情報の取得
         oembed_title = playlist_info.get('title', f'Playlist ({playlist_id[:8]}...)')
-        thumbnail_html = playlist_info.get('thumbnail_html', '')
+        thumbnail_url = playlist_info.get('thumbnail_url', '')
         
         # ユーザーが入力したタイトルが優先、なければOEmbedから取得
         final_title = title if title else oembed_title
@@ -1392,8 +1414,8 @@ def youtube_playlist_process():
             # 更新
             existing.title = final_title
             existing.description = description or existing.description
-            if thumbnail_html:
-                existing.thumbnail_url = thumbnail_html
+            if thumbnail_url:
+                existing.thumbnail_url = thumbnail_url
             db.session.commit()
             print(f"[INFO] Playlist updated: {playlist_id}")
             flash("✅ プレイリストを更新しました。", "success")
@@ -1404,7 +1426,7 @@ def youtube_playlist_process():
                 playlist_id=playlist_id,
                 title=final_title,
                 description=description,
-                thumbnail_url=thumbnail_html,
+                thumbnail_url=thumbnail_url,
             )
             db.session.add(new_playlist)
             db.session.commit()
