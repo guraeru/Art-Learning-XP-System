@@ -246,6 +246,21 @@
         ];
         console.log(`[INIT] Loaded ${VIDEO_IDS.length} video IDs from server`, VIDEO_IDS);
         
+        // **重要**: サーバーから動画情報マップを取得（非公開動画の検出用）
+        const VIDEO_INFO_MAP = {
+        {%- if video_info_map %}
+            {%- for video_id, info in video_info_map.items() %}
+            "{{ video_id }}": {
+                title: {{ info.title|tojson }},
+                privacy_status: {{ info.privacy_status|tojson }},
+                embeddable: {{ info.embeddable|tojson }},
+                thumbnail_url: {{ info.thumbnail_url|tojson if info.thumbnail_url else 'null' }}
+            },
+            {%- endfor %}
+        {%- endif %}
+        };
+        console.log(`[INIT] Loaded video info for ${Object.keys(VIDEO_INFO_MAP).length} videos`, VIDEO_INFO_MAP);
+        
         // サーバーから完了済み動画情報を初期化
         const completedVideos = [
         {%- for video in video_views %}
@@ -607,10 +622,23 @@
                 for (let i = 0; i < videoCount; i++) {
                     const isCompleted = videoProgress[i] ? 'completed' : '';
                     const isCurrent = i === currentVideoIndex ? 'current' : '';
+                    
+                    // 動画IDを取得
+                    const videoId = VIDEO_ID_MAP[i];
+                    
+                    // 動画情報から動画タイトルを取得（存在しない場合はデフォルトタイトル）
+                    const videoInfo = VIDEO_INFO_MAP[videoId];
+                    const videoTitle = videoInfo && videoInfo.title ? videoInfo.title : `動画 ${i + 1}`;
+                    
+                    // タイトルが長すぎる場合は省略
+                    const displayTitle = videoTitle.length > 45 ? videoTitle.substring(0, 45) + '...' : videoTitle;
+                    
                     html += `
                         <div class="video-item ${isCompleted} ${isCurrent}" data-video-index="${i}">
                             <div>
-                                <strong>動画 ${i + 1}</strong>
+                                <strong style="font-size: 0.95em; line-height: 1.4;">
+                                    <span style="color: #667eea; font-weight: bold;">${i + 1}.</span> ${displayTitle}
+                                </strong>
                                 ${videoProgress[i] ? `<span class="xp-badge">+${videoXPMap[i] || 100} XP</span>` : ''}
                             </div>
                             <div style="font-size: 0.75em; color: #999; margin-top: 3px;">

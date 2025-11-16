@@ -1162,6 +1162,63 @@ def get_youtube_playlist_video_ids(playlist_id):
         return []
 
 
+def get_youtube_playlist_videos_info_ytdlp(playlist_id):
+    """
+    yt-dlpを使用してプレイリスト内の動画情報（ID、タイトルなど）を取得します。
+    YouTube Data APIを使用しないため、公開動画のみアクセス可能です。
+    
+    Args:
+        playlist_id: YouTube playlist ID
+    
+    Returns:
+        dict: {video_id: {'title': 'xxx', 'duration': 123, ...}}
+    """
+    if not playlist_id:
+        return {}
+    
+    try:
+        import yt_dlp
+        
+        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+        
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': 'in_playlist',
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            print(f"[DEBUG] Extracting playlist info with yt-dlp: {playlist_url}")
+            info = ydl.extract_info(playlist_url, download=False)
+            
+            video_info_map = {}
+            if 'entries' in info:
+                for entry in info['entries']:
+                    if entry and 'id' in entry:
+                        video_id = entry['id']
+                        video_info_map[video_id] = {
+                            'title': entry.get('title', f'Video {video_id}'),
+                            'duration': entry.get('duration', 0),
+                            'thumbnail_url': entry.get('thumbnails', [{}])[-1].get('url', '') if entry.get('thumbnails') else '',
+                            'privacy_status': 'public',  # yt-dlpでは判定不可
+                            'embeddable': True,  # yt-dlpでは判定不可
+                        }
+                        print(f"[DEBUG] Found video: {video_id} - {video_info_map[video_id]['title']}")
+            
+            print(f"[SUCCESS] Extracted {len(video_info_map)} video info via yt-dlp")
+            return video_info_map
+    
+    except ImportError:
+        print(f"[ERROR] yt-dlp not installed")
+        return {}
+    
+    except Exception as e:
+        print(f"[ERROR] Failed to extract playlist info via yt-dlp: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+
 def get_youtube_playlist_video_count(playlist_id):
     """
     Get the actual number of videos in a YouTube playlist.
@@ -1373,6 +1430,13 @@ def youtube_player(playlist_id):
     actual_video_count = len(video_ids)
     print(f"[INFO] Playlist {playlist.playlist_id}: extracted {actual_video_count} video IDs")
     
+    # 動画情報を取得（yt-dlpを使用してタイトルなどを取得）
+    video_info_map = {}
+    if video_ids:
+        print(f"[INFO] Fetching video info for playlist via yt-dlp")
+        video_info_map = get_youtube_playlist_videos_info_ytdlp(playlist.playlist_id)
+        print(f"[INFO] Retrieved info for {len(video_info_map)} videos via yt-dlp")
+    
     # 視聴情報を取得
     video_views = VideoView.query.filter_by(playlist_id=playlist_id).order_by(VideoView.video_index).all()
     completed_count = sum(1 for v in video_views if v.is_completed)
@@ -1382,6 +1446,7 @@ def youtube_player(playlist_id):
         playlist=playlist,
         video_views=video_views,
         video_ids=video_ids,  # 動画IDリストをテンプレートに渡す
+        video_info_map=video_info_map,  # 動画情報マップをテンプレートに渡す
         completed_count=completed_count,
         total_count=len(video_views),
         actual_video_count=actual_video_count or 10,  # Fallback to 10 if unable to fetch
