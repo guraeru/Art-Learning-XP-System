@@ -386,7 +386,7 @@
                             data-description="{{ book.description | default('') }}"
                             data-pdf="{{ book.pdf_file_path }}"
                             data-cover="{{ book.cover_image_path }}">
-                            <td>{{ book.id }}</td>
+                            <td style="font-family: monospace; font-weight: 600; color: #667eea;">{{ book.id }}</td>
                             <td class="table-title">{{ book.title }}</td>
                             <td>{{ book.author | default('-') }}</td>
                             <td>
