@@ -232,7 +232,7 @@ def _fetch_tag_image_and_info(tag_name, filename):
     params = {
         'word': tag_name, 
         'search_target': 'exact_match_for_tags', 
-        'limit': 10,  # 複数件取得してフィルター
+        'limit': 1,
         'restrict': '0',       # R-18作品を除外 (Webのフィルター)
         'filter': 'for_android' # 全年齢対象を強制 (Appのフィルター)
     } 
@@ -243,25 +243,15 @@ def _fetch_tag_image_and_info(tag_name, filename):
         data = json_response.json()
         
         illusts = data.get('illusts', [])
-        
-        # R-18フィルタリング: 返ってきた作品を手動でチェック
-        for illust in illusts:
-            # x_restrict: 0=全年齢, 1=R-18, 2=R-18G
-            # sanity_level: 0-4=全年齢, 5=R-18, 6=R-18G
-            x_restrict = illust.get('x_restrict', 0)
-            sanity_level = illust.get('sanity_level', 6)
-            
-            # 全年齢作品のみ使用（x_restrict == 0 かつ sanity_level <= 4）
-            if x_restrict == 0 and sanity_level <= 4:
-                image_url = illust.get('image_urls', {}).get('medium')
-                if image_url:
-                    image_path = download_and_save_image(image_url, filename, "assets/topic_placeholder.jpg")
-                    print(f"✅ お題タグ '{tag_name}' の全年齢作品の画像をダウンロードしました。（R-18除外: x_restrict={x_restrict}, sanity_level={sanity_level}）")
-                    return image_path
-        
-        # 全年齢作品が見つからなかった場合
-        print(f"⚠️ タグ '{tag_name}' の全年齢作品が見つかりませんでした。")
-        return "assets/topic_placeholder.jpg"
+        if illusts:
+            # 最初のイラスト（人気作品）の画像URL (mediumサイズ) を取得
+            image_url = illusts[0].get('image_urls', {}).get('medium')
+            if image_url:
+                image_path = download_and_save_image(image_url, filename, "assets/topic_placeholder.jpg")
+                print(f"✅ お題タグ '{tag_name}' の人気作品の画像をダウンロードしました。（R-18除外強化）")
+                return image_path
+                
+        return "assets/topic_placeholder.jpg" # 画像が見つからなかった場合
 
     except Exception as e:
         print(f"❌ AppAPI タグ画像検索エラー: {e}")
@@ -1078,16 +1068,16 @@ def extract_playlist_id(url_or_id):
 
 def fetch_youtube_playlist_info(playlist_id):
     """
-    Fetch YouTube playlist information using OEmbed API and yt-dlp.
+    Fetch YouTube playlist information using OEmbed API.
     
-    Returns playlist metadata including title and thumbnail image URL.
+    Returns playlist metadata including title and thumbnail embed code.
     This works for all playlists including limited distribution.
     
     Args:
         playlist_id: YouTube playlist ID (e.g., PLxxxxxx)
     
     Returns:
-        Dict with 'title', 'author', 'thumbnail_url' (image URL) or None
+        Dict with 'title', 'author', 'thumbnail_url' (embed iframe HTML) or None
     """
     if not playlist_id:
         return None
@@ -1104,38 +1094,16 @@ def fetch_youtube_playlist_info(playlist_id):
             title = data.get('title', f'Playlist ({playlist_id[:8]}...)')
             author = data.get('author_name', 'YouTube')
             
-            # Get thumbnail image URL from the first video in the playlist
-            thumbnail_url = None
-            try:
-                import yt_dlp
-                playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
-                ydl_opts = {
-                    'quiet': True,
-                    'no_warnings': True,
-                    'extract_flat': 'in_playlist',
-                    'playlistend': 1,  # Only get the first video
-                }
-                
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(playlist_url, download=False)
-                    if 'entries' in info and info['entries']:
-                        first_video = info['entries'][0]
-                        if first_video and 'id' in first_video:
-                            video_id = first_video['id']
-                            # Use standard YouTube thumbnail URL
-                            thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-                            print(f"[SUCCESS] Thumbnail URL from first video: {thumbnail_url}")
-            except Exception as e:
-                print(f"[WARN] Failed to get playlist thumbnail from yt-dlp: {e}")
-                # Fallback: use a generic YouTube icon or placeholder
-                thumbnail_url = None
+            # For playlist embeds, we'll use the HTML embed code as thumbnail
+            # This displays the playlist embed preview
+            html_code = data.get('html', '')
             
             print(f"[SUCCESS] Playlist info fetched: title={title}, author={author}")
             
             return {
                 'title': title,
                 'author': author,
-                'thumbnail_url': thumbnail_url,  # Image URL instead of iframe HTML
+                'thumbnail_html': html_code,  # Embed iframe HTML
                 'playlist_id': playlist_id,
             }
         else:
@@ -1192,63 +1160,6 @@ def get_youtube_playlist_video_ids(playlist_id):
     except Exception as e:
         print(f"[ERROR] Failed to get video IDs: {e}")
         return []
-
-
-def get_youtube_playlist_videos_info_ytdlp(playlist_id):
-    """
-    yt-dlpを使用してプレイリスト内の動画情報（ID、タイトルなど）を取得します。
-    YouTube Data APIを使用しないため、公開動画のみアクセス可能です。
-    
-    Args:
-        playlist_id: YouTube playlist ID
-    
-    Returns:
-        dict: {video_id: {'title': 'xxx', 'duration': 123, ...}}
-    """
-    if not playlist_id:
-        return {}
-    
-    try:
-        import yt_dlp
-        
-        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
-        
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': 'in_playlist',
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            print(f"[DEBUG] Extracting playlist info with yt-dlp: {playlist_url}")
-            info = ydl.extract_info(playlist_url, download=False)
-            
-            video_info_map = {}
-            if 'entries' in info:
-                for entry in info['entries']:
-                    if entry and 'id' in entry:
-                        video_id = entry['id']
-                        video_info_map[video_id] = {
-                            'title': entry.get('title', f'Video {video_id}'),
-                            'duration': entry.get('duration', 0),
-                            'thumbnail_url': entry.get('thumbnails', [{}])[-1].get('url', '') if entry.get('thumbnails') else '',
-                            'privacy_status': 'public',  # yt-dlpでは判定不可
-                            'embeddable': True,  # yt-dlpでは判定不可
-                        }
-                        print(f"[DEBUG] Found video: {video_id} - {video_info_map[video_id]['title']}")
-            
-            print(f"[SUCCESS] Extracted {len(video_info_map)} video info via yt-dlp")
-            return video_info_map
-    
-    except ImportError:
-        print(f"[ERROR] yt-dlp not installed")
-        return {}
-    
-    except Exception as e:
-        print(f"[ERROR] Failed to extract playlist info via yt-dlp: {e}")
-        import traceback
-        traceback.print_exc()
-        return {}
 
 
 def get_youtube_playlist_video_count(playlist_id):
@@ -1402,7 +1313,7 @@ def youtube_playlist_process():
         
         # プレイリスト情報の取得
         oembed_title = playlist_info.get('title', f'Playlist ({playlist_id[:8]}...)')
-        thumbnail_url = playlist_info.get('thumbnail_url', '')
+        thumbnail_html = playlist_info.get('thumbnail_html', '')
         
         # ユーザーが入力したタイトルが優先、なければOEmbedから取得
         final_title = title if title else oembed_title
@@ -1414,8 +1325,8 @@ def youtube_playlist_process():
             # 更新
             existing.title = final_title
             existing.description = description or existing.description
-            if thumbnail_url:
-                existing.thumbnail_url = thumbnail_url
+            if thumbnail_html:
+                existing.thumbnail_url = thumbnail_html
             db.session.commit()
             print(f"[INFO] Playlist updated: {playlist_id}")
             flash("✅ プレイリストを更新しました。", "success")
@@ -1426,7 +1337,7 @@ def youtube_playlist_process():
                 playlist_id=playlist_id,
                 title=final_title,
                 description=description,
-                thumbnail_url=thumbnail_url,
+                thumbnail_url=thumbnail_html,
             )
             db.session.add(new_playlist)
             db.session.commit()
@@ -1462,13 +1373,6 @@ def youtube_player(playlist_id):
     actual_video_count = len(video_ids)
     print(f"[INFO] Playlist {playlist.playlist_id}: extracted {actual_video_count} video IDs")
     
-    # 動画情報を取得（yt-dlpを使用してタイトルなどを取得）
-    video_info_map = {}
-    if video_ids:
-        print(f"[INFO] Fetching video info for playlist via yt-dlp")
-        video_info_map = get_youtube_playlist_videos_info_ytdlp(playlist.playlist_id)
-        print(f"[INFO] Retrieved info for {len(video_info_map)} videos via yt-dlp")
-    
     # 視聴情報を取得
     video_views = VideoView.query.filter_by(playlist_id=playlist_id).order_by(VideoView.video_index).all()
     completed_count = sum(1 for v in video_views if v.is_completed)
@@ -1478,7 +1382,6 @@ def youtube_player(playlist_id):
         playlist=playlist,
         video_views=video_views,
         video_ids=video_ids,  # 動画IDリストをテンプレートに渡す
-        video_info_map=video_info_map,  # 動画情報マップをテンプレートに渡す
         completed_count=completed_count,
         total_count=len(video_views),
         actual_video_count=actual_video_count or 10,  # Fallback to 10 if unable to fetch
