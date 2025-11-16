@@ -1368,7 +1368,7 @@ def youtube_playlist_process():
         playlist_id = extract_playlist_id(playlist_id_or_url)
         if not playlist_id:
             flash("❌ 有効なYouTubeプレイリストURL/IDではありません。", "error")
-            return redirect(url_for("admin", _anchor="tab-youtube"))
+            return redirect(url_for("admin", _anchor="tab-youtube-management"))
         
         # OEmbed API でプレイリスト情報を取得
         print(f"[INFO] Fetching playlist info for: {playlist_id}")
@@ -1376,7 +1376,7 @@ def youtube_playlist_process():
         
         if not playlist_info:
             flash("❌ プレイリスト情報を取得できませんでした。プレイリストIDが正しいか確認してください。", "error")
-            return redirect(url_for("admin", _anchor="tab-youtube"))
+            return redirect(url_for("admin", _anchor="tab-youtube-management"))
         
         # プレイリスト情報の取得
         oembed_title = playlist_info.get('title', f'Playlist ({playlist_id[:8]}...)')
@@ -1411,13 +1411,13 @@ def youtube_playlist_process():
             print(f"[INFO] Playlist created: id={new_playlist.id}")
             flash("✅ プレイリストを登録しました。", "success")
         
-        return redirect(url_for("admin", _anchor="tab-youtube"))
+        return redirect(url_for("admin", _anchor="tab-youtube-management"))
     
     except Exception as e:
         db.session.rollback()
         flash(f"❌ エラー: {e}", "error")
         print(f"[ERROR] {e}")
-        return redirect(url_for("admin", _anchor="tab-youtube"))
+        return redirect(url_for("admin", _anchor="tab-youtube-management"))
 
 
 @app.route("/youtube_player/<int:playlist_id>")
@@ -1564,7 +1564,7 @@ def reset_youtube_playlist_progress(id):
         playlist = YouTubePlaylist.query.get(id)
         if not playlist:
             flash("❌ プレイリストが見つかりません。", "error")
-            return redirect(url_for("admin", _anchor="tab-youtube"))
+            return redirect(url_for("admin", _anchor="tab-youtube-management"))
         
         # Delete all VideoView records for this playlist
         deleted_count = VideoView.query.filter_by(playlist_id=id).delete()
@@ -1577,7 +1577,7 @@ def reset_youtube_playlist_progress(id):
         flash(f"❌ リセットエラー: {e}", "error")
         print(f"[ERROR] Reset progress error: {e}")
 
-    return redirect(url_for("admin", _anchor="tab-youtube"))
+    return redirect(url_for("admin", _anchor="tab-youtube-management"))
 
 
 @app.route("/delete_youtube_playlist/<int:id>", methods=["POST"])
@@ -1595,7 +1595,7 @@ def delete_youtube_playlist(id):
         db.session.rollback()
         flash(f"❌ 削除エラー: {e}", "error")
 
-    return redirect(url_for("admin", _anchor="tab-youtube"))
+    return redirect(url_for("admin", _anchor="tab-youtube-management"))
 
 
 if __name__ == '__main__':
