@@ -232,7 +232,7 @@ def _fetch_tag_image_and_info(tag_name, filename):
     params = {
         'word': tag_name, 
         'search_target': 'exact_match_for_tags', 
-        'limit': 1,
+        'limit': 10,  # 複数件取得してフィルター
         'restrict': '0',       # R-18作品を除外 (Webのフィルター)
         'filter': 'for_android' # 全年齢対象を強制 (Appのフィルター)
     } 
@@ -243,15 +243,25 @@ def _fetch_tag_image_and_info(tag_name, filename):
         data = json_response.json()
         
         illusts = data.get('illusts', [])
-        if illusts:
-            # 最初のイラスト（人気作品）の画像URL (mediumサイズ) を取得
-            image_url = illusts[0].get('image_urls', {}).get('medium')
-            if image_url:
-                image_path = download_and_save_image(image_url, filename, "assets/topic_placeholder.jpg")
-                print(f"✅ お題タグ '{tag_name}' の人気作品の画像をダウンロードしました。（R-18除外強化）")
-                return image_path
-                
-        return "assets/topic_placeholder.jpg" # 画像が見つからなかった場合
+        
+        # R-18フィルタリング: 返ってきた作品を手動でチェック
+        for illust in illusts:
+            # x_restrict: 0=全年齢, 1=R-18, 2=R-18G
+            # sanity_level: 0-4=全年齢, 5=R-18, 6=R-18G
+            x_restrict = illust.get('x_restrict', 0)
+            sanity_level = illust.get('sanity_level', 6)
+            
+            # 全年齢作品のみ使用（x_restrict == 0 かつ sanity_level <= 4）
+            if x_restrict == 0 and sanity_level <= 4:
+                image_url = illust.get('image_urls', {}).get('medium')
+                if image_url:
+                    image_path = download_and_save_image(image_url, filename, "assets/topic_placeholder.jpg")
+                    print(f"✅ お題タグ '{tag_name}' の全年齢作品の画像をダウンロードしました。（R-18除外: x_restrict={x_restrict}, sanity_level={sanity_level}）")
+                    return image_path
+        
+        # 全年齢作品が見つからなかった場合
+        print(f"⚠️ タグ '{tag_name}' の全年齢作品が見つかりませんでした。")
+        return "assets/topic_placeholder.jpg"
 
     except Exception as e:
         print(f"❌ AppAPI タグ画像検索エラー: {e}")
