@@ -139,9 +139,7 @@
         }
         
         .video-item.completed:before {
-            content: "✓ ";
-            color: #4CAF50;
-            font-weight: bold;
+            content: "";
         }
         
         .video-item.current {
@@ -639,10 +637,9 @@
                                 <strong style="font-size: 0.95em; line-height: 1.4;">
                                     <span style="color: #667eea; font-weight: bold;">${i + 1}.</span> ${displayTitle}
                                 </strong>
-                                ${videoProgress[i] ? `<span class="xp-badge">+${videoXPMap[i] || 100} XP</span>` : ''}
                             </div>
                             <div style="font-size: 0.75em; color: #999; margin-top: 3px;">
-                                ${videoProgress[i] ? '完了' : '未視聴'}
+                                ${videoProgress[i] ? `完了 <span class="xp-badge">+${videoXPMap[i] || 100} XP</span>` : '未視聴'}
                             </div>
                         </div>
                     `;
