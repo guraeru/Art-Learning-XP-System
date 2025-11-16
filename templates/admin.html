@@ -563,7 +563,6 @@
                 <table class="table-list">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">サムネ</th>
                             <th>ID</th>
                             <th>タイトル</th>
                             <th>プレイリストID</th>
@@ -576,18 +575,7 @@
                         <tr data-youtube-id="{{ playlist.id }}"
                             data-playlist-id="{{ playlist.playlist_id }}"
                             data-title="{{ playlist.title }}"
-                            data-thumbnail="{{ playlist.thumbnail_url | default('') }}"
                             data-description="{{ playlist.description | default('') }}">
-                            <td style="text-align: center;">
-                                {% if playlist.thumbnail_url %}
-                                    <img src="{{ playlist.thumbnail_url }}" 
-                                         alt="{{ playlist.title }}" 
-                                         loading="lazy"
-                                         style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
-                                {% else %}
-                                    <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.2em;">🎬</div>
-                                {% endif %}
-                            </td>
                             <td style="font-family: monospace; font-weight: 600; color: #667eea;">{{ playlist.id }}</td>
                             <td style="font-weight: 600;">{{ playlist.title }}</td>
                             <td>
