@@ -1038,6 +1038,243 @@ def reset_data():
     return redirect(url_for('admin', _anchor='tab-user-management'))
 
 
+@app.route('/statistics')
+def statistics():
+    """統計・分析ページ"""
+    context = {
+        'status': get_current_status()
+    }
+    return render_template('statistics.html', **context)
+
+
+@app.route('/api/statistics/xp_by_technique')
+def api_xp_by_technique():
+    """技法別XP獲得量の統計を返す"""
+    records = Record.query.all()
+    
+    # 時間学習と科目習得/作品投稿を分けて集計
+    time_learning = {}
+    acquisition = {}
+    
+    for record in records:
+        if record.type == '時間学習':
+            time_learning[record.subtype] = time_learning.get(record.subtype, 0) + record.xp_gained
+        elif record.type in ['科目習得', '作品投稿']:
+            acquisition[record.subtype] = acquisition.get(record.subtype, 0) + record.xp_gained
+    
+    return jsonify({
+        'time_learning': {
+            'labels': list(time_learning.keys()),
+            'data': list(time_learning.values())
+        },
+        'acquisition': {
+            'labels': list(acquisition.keys()),
+            'data': list(acquisition.values())
+        }
+    })
+
+
+@app.route('/api/statistics/xp_by_evaluation')
+def api_xp_by_evaluation():
+    """評価別の作品数とXP獲得量の統計を返す"""
+    records = Record.query.filter(
+        Record.type.in_(['科目習得', '作品投稿']),
+        Record.evaluation.isnot(None)
+    ).all()
+    
+    evaluation_stats = {}
+    for record in records:
+        eval_key = record.evaluation
+        if eval_key not in evaluation_stats:
+            evaluation_stats[eval_key] = {'count': 0, 'total_xp': 0}
+        evaluation_stats[eval_key]['count'] += 1
+        evaluation_stats[eval_key]['total_xp'] += record.xp_gained
+    
+    # A-E順にソート
+    sorted_evals = sorted(evaluation_stats.keys())
+    
+    return jsonify({
+        'labels': sorted_evals,
+        'counts': [evaluation_stats[e]['count'] for e in sorted_evals],
+        'total_xp': [evaluation_stats[e]['total_xp'] for e in sorted_evals]
+    })
+
+
+@app.route('/api/statistics/learning_patterns')
+def api_learning_patterns():
+    """学習パターン（曜日別、時間帯別）の統計を返す"""
+    time_records = Record.query.filter_by(type='時間学習').all()
+    
+    # 曜日別集計 (0=月曜, 6=日曜)
+    weekday_data = [0] * 7
+    weekday_labels = ['月', '火', '水', '木', '金', '土', '日']
+    
+    # 時間帯別集計
+    time_period_data = {'朝 (6-12時)': 0, '昼 (12-18時)': 0, '夜 (18-24時)': 0, '深夜 (0-6時)': 0}
+    
+    for record in time_records:
+        # 曜日別
+        weekday = record.date.weekday()
+        weekday_data[weekday] += record.duration_minutes
+        
+        # 時間帯別
+        hour = record.date.hour
+        if 6 <= hour < 12:
+            time_period_data['朝 (6-12時)'] += record.duration_minutes
+        elif 12 <= hour < 18:
+            time_period_data['昼 (12-18時)'] += record.duration_minutes
+        elif 18 <= hour < 24:
+            time_period_data['夜 (18-24時)'] += record.duration_minutes
+        else:
+            time_period_data['深夜 (0-6時)'] += record.duration_minutes
+    
+    # 分を時間に変換
+    weekday_hours = [round(minutes / 60, 2) for minutes in weekday_data]
+    time_period_hours = {k: round(v / 60, 2) for k, v in time_period_data.items()}
+    
+    return jsonify({
+        'weekday': {
+            'labels': weekday_labels,
+            'data': weekday_hours
+        },
+        'time_period': {
+            'labels': list(time_period_hours.keys()),
+            'data': list(time_period_hours.values())
+        }
+    })
+
+
+@app.route('/api/statistics/youtube_progress')
+def api_youtube_progress():
+    """YouTubeプレイリストの進捗統計を返す"""
+    playlists = YouTubePlaylist.query.all()
+    
+    stats = []
+    for playlist in playlists:
+        video_views = VideoView.query.filter_by(playlist_id=playlist.id).all()
+        total_videos = len(video_views)
+        completed_videos = sum(1 for v in video_views if v.is_completed)
+        total_xp = sum(v.xp_gained for v in video_views)
+        
+        if total_videos > 0:
+            progress_rate = round((completed_videos / total_videos) * 100, 1)
+        else:
+            progress_rate = 0
+        
+        stats.append({
+            'title': playlist.title,
+            'total_videos': total_videos,
+            'completed_videos': completed_videos,
+            'progress_rate': progress_rate,
+            'total_xp': total_xp
+        })
+    
+    return jsonify({'playlists': stats})
+
+
+@app.route('/api/export/csv')
+def api_export_csv():
+    """学習記録をCSV形式でエクスポート"""
+    import csv
+    import io
+    from flask import make_response
+    
+    records = Record.query.order_by(Record.date.desc()).all()
+    
+    # CSVデータを作成
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # ヘッダー
+    writer.writerow(['ID', '日付', 'タイプ', 'サブタイプ', '説明', '獲得XP', '時間(分)', '評価'])
+    
+    # データ行
+    for record in records:
+        writer.writerow([
+            record.id,
+            record.date.strftime('%Y-%m-%d %H:%M:%S'),
+            record.type,
+            record.subtype,
+            record.description or '',
+            record.xp_gained,
+            record.duration_minutes or '',
+            record.evaluation or ''
+        ])
+    
+    # レスポンスを作成
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=learning_records.csv'
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8-sig'
+    
+    return response
+
+
+@app.route('/api/export/json')
+def api_export_json():
+    """全データをJSON形式でエクスポート"""
+    from flask import make_response
+    
+    # ユーザーステータス
+    user_status = UserStatus.query.first()
+    status_data = {
+        'username': user_status.username if user_status else 'Unknown',
+        'total_xp': user_status.total_xp if user_status else 0
+    }
+    
+    # 学習記録
+    records = Record.query.order_by(Record.date.desc()).all()
+    records_data = []
+    for record in records:
+        records_data.append({
+            'id': record.id,
+            'type': record.type,
+            'subtype': record.subtype,
+            'description': record.description,
+            'xp_gained': record.xp_gained,
+            'date': record.date.isoformat(),
+            'duration_minutes': record.duration_minutes,
+            'evaluation': record.evaluation,
+            'image_path': record.image_path
+        })
+    
+    # 書籍
+    books = Book.query.all()
+    books_data = []
+    for book in books:
+        books_data.append({
+            'id': book.id,
+            'title': book.title,
+            'author': book.author,
+            'description': book.description,
+            'added_date': book.added_date.isoformat() if book.added_date else None
+        })
+    
+    # YouTubeプレイリスト
+    playlists = YouTubePlaylist.query.all()
+    playlists_data = []
+    for playlist in playlists:
+        playlists_data.append({
+            'id': playlist.id,
+            'title': playlist.title,
+            'playlist_id': playlist.playlist_id,
+            'added_date': playlist.added_date.isoformat() if playlist.added_date else None
+        })
+    
+    export_data = {
+        'export_date': datetime.now(jp).isoformat(),
+        'user_status': status_data,
+        'records': records_data,
+        'books': books_data,
+        'youtube_playlists': playlists_data
+    }
+    
+    response = make_response(jsonify(export_data))
+    response.headers['Content-Disposition'] = 'attachment; filename=art_learning_data.json'
+    
+    return response
+
+
 @app.route('/api/time_analysis/<period>')
 def api_time_analysis(period):
     """
