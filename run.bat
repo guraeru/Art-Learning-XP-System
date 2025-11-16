@@ -1,7 +1,7 @@
 @echo off
-
-:: conda環境をアクティブにする
-call "%USERPROFILE%\anaconda3\condabin\conda.bat" activate base
+chcp 65001 >nul
+echo Starting Art Learning XP System...
+echo.
 
 :: スクリプトを実行
 python app.py
