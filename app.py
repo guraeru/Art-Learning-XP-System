@@ -232,7 +232,7 @@ def _fetch_tag_image_and_info(tag_name, filename):
     params = {
         'word': tag_name, 
         'search_target': 'exact_match_for_tags', 
-        'limit': 1,
+        'limit': 20,  # 複数件取得して手動フィルター
         'restrict': '0',       # R-18作品を除外 (Webのフィルター)
         'filter': 'for_android' # 全年齢対象を強制 (Appのフィルター)
     } 
@@ -243,15 +243,34 @@ def _fetch_tag_image_and_info(tag_name, filename):
         data = json_response.json()
         
         illusts = data.get('illusts', [])
-        if illusts:
-            # 最初のイラスト（人気作品）の画像URL (mediumサイズ) を取得
-            image_url = illusts[0].get('image_urls', {}).get('medium')
-            if image_url:
-                image_path = download_and_save_image(image_url, filename, "assets/topic_placeholder.jpg")
-                print(f"✅ お題タグ '{tag_name}' の人気作品の画像をダウンロードしました。（R-18除外強化）")
-                return image_path
-                
-        return "assets/topic_placeholder.jpg" # 画像が見つからなかった場合
+        
+        # R-18フィルタリング: 返ってきた作品を手動でチェック
+        for illust in illusts:
+            # x_restrict: 0=全年齢, 1=R-18, 2=R-18G
+            # sanity_level: 0-4=全年齢, 5=R-18, 6=R-18G
+            x_restrict = illust.get('x_restrict', 1)
+            sanity_level = illust.get('sanity_level', 6)
+            
+            # タグにR-18関連が含まれているかチェック
+            tags = illust.get('tags', [])
+            has_r18_tag = False
+            for tag in tags:
+                tag_name_lower = tag.get('name', '').lower()
+                if 'r-18' in tag_name_lower or 'r18' in tag_name_lower or '18禁' in tag_name_lower:
+                    has_r18_tag = True
+                    break
+            
+            # 全年齢作品のみ使用（x_restrict == 0 かつ sanity_level <= 4 かつ R-18タグなし）
+            if x_restrict == 0 and sanity_level <= 4 and not has_r18_tag:
+                image_url = illust.get('image_urls', {}).get('medium')
+                if image_url:
+                    image_path = download_and_save_image(image_url, filename, "assets/topic_placeholder.jpg")
+                    print(f"[SUCCESS] Downloaded all-ages artwork for tag '{tag_name}' (x_restrict={x_restrict}, sanity_level={sanity_level}, no R-18 tags)")
+                    return image_path
+        
+        # 全年齢作品が見つからなかった場合
+        print(f"[WARNING] No all-ages artwork found for tag '{tag_name}'")
+        return "assets/topic_placeholder.jpg"
 
     except Exception as e:
         print(f"❌ AppAPI タグ画像検索エラー: {e}")
@@ -287,26 +306,54 @@ def _fetch_trending_tag():
         trending_data = data.get('trend_tags', [])
         
         if trending_data:
-            # トレンドタグの1番目を採用
-            tag_info = trending_data[0]
-            tag_name = tag_info.get('tag', '不明なタグ')
-            translated_name = tag_info.get('translated_name')
-            
-            title = f"注目のタグ: #{tag_name}"
-            if translated_name and translated_name != tag_name:
-                 title += f" ({translated_name})"
-            
-            url = PIXIV_WEB_HOST + f"/tags/{tag_name}/artworks"
-            
-            # _fetch_tag_image_and_info (人気順・R-18除外フィルター適用済み)を呼び出し、画像を取得
-            image_path = _fetch_tag_image_and_info(tag_name, "pixiv_trend_img.jpg")
-            
-            print(f"✅ トレンドタグ '{tag_name}' の画像を再検索・ダウンロードしました。（人気順・R-18除外強化）")
+            # トレンドタグから全年齢タグを探す
+            for tag_info in trending_data[:10]:  # 上位10個をチェック
+                tag_name = tag_info.get('tag', '不明なタグ')
+                translated_name = tag_info.get('translated_name', '')
                 
+                # R-18関連タグを除外
+                tag_lower = tag_name.lower()
+                trans_lower = translated_name.lower() if translated_name else ''
+                r18_keywords = ['r-18', 'r18', '18禁', 'nsfw', '巨乳', 'セクシー', 'えっち', '水着', '下着']
+                
+                is_r18_tag = False
+                for keyword in r18_keywords:
+                    if keyword in tag_lower or keyword in trans_lower:
+                        is_r18_tag = True
+                        break
+                
+                if is_r18_tag:
+                    print(f"[INFO] Skipping R-18 related tag: {tag_name}")
+                    continue
+                
+                title = f"注目のタグ: #{tag_name}"
+                if translated_name and translated_name != tag_name:
+                     title += f" ({translated_name})"
+                
+                url = PIXIV_WEB_HOST + f"/tags/{tag_name}/artworks"
+                
+                # _fetch_tag_image_and_info (人気順・R-18除外フィルター適用済み)を呼び出し、画像を取得
+                image_path = _fetch_tag_image_and_info(tag_name, "pixiv_trend_img.jpg")
+                
+                # プレースホルダー画像が返された場合は次のタグを試す
+                if image_path == "assets/topic_placeholder.jpg":
+                    print(f"[INFO] No all-ages artwork found for tag '{tag_name}', trying next tag")
+                    continue
+                
+                print(f"[SUCCESS] Trending tag '{tag_name}' image downloaded (all-ages only)")
+                    
+                return {
+                    "title": title, 
+                    "image": image_path, 
+                    "url": url
+                }
+            
+            # すべてのトレンドタグで全年齢作品が見つからなかった場合
+            print("[WARNING] No suitable all-ages trending tag found")
             return {
-                "title": title, 
-                "image": image_path, 
-                "url": url
+                "title": "注目のタグ: (全年齢作品なし)", 
+                "image": "assets/contest_placeholder.jpg", 
+                "url": PIXIV_WEB_HOST + '/tags'
             }
         
         raise Exception("AppAPI returned empty trending tags.")
