@@ -51,13 +51,27 @@ cd Art-Learning-XP-System
 
 2. **Create virtual environment**
 ```bash
-python -m venv myenv
+# Delete existing if necessary
+rm -rf myenv
+
+# Create new virtual environment
+python3 -m venv myenv
+
+# Activate virtual environment
+# On Linux/Mac:
+source myenv/bin/activate
+# On Windows:
 myenv\Scripts\activate
 ```
 
 3. **Install dependencies**
 ```bash
 pip install -r requirements.txt
+```
+
+If you encounter `externally-managed-environment` error on Linux:
+```bash
+pip install --break-system-packages -r requirements.txt
 ```
 
 4. **Initialize database**
