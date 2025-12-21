@@ -127,6 +127,24 @@ class VideoView(db.Model):
         return f"<VideoView playlist_id={self.playlist_id}, video_index={self.video_index}>"
 
 
+class PlaylistMaterial(db.Model):
+    """プレイリスト講義資料を保持するテーブル。"""
+    
+    __tablename__ = "playlist_material"
+
+    id = db.Column(db.Integer, primary_key=True)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('youtube_playlist.id'), nullable=False)
+    playlist = db.relationship('YouTubePlaylist', backref='materials')
+    stored_filename = db.Column(db.String(500), nullable=False)  # サーバー保存ファイル名
+    original_filename = db.Column(db.String(500), nullable=False)  # 元のファイル名
+    display_name = db.Column(db.String(500))  # 表示名
+    file_size = db.Column(db.Integer)  # ファイルサイズ（バイト）
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<PlaylistMaterial {self.original_filename}>"
+
+
 class User(UserMixin, db.Model):
     """Flask-Login用ユーザーモデル。"""
 

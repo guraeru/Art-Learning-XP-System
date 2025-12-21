@@ -6,6 +6,7 @@ __pycache__/
 .Python
 env/
 venv/
+myenv/
 ENV/
 build/
 develop-eggs/
@@ -31,6 +32,17 @@ instance/
 *.db
 *.sqlite
 *.sqlite3
+
+# Node.js / React
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm
+.eslintcache
+*.tsbuildinfo
+
+# Build output
+static/dist/
 
 # IDE
 .vscode/
