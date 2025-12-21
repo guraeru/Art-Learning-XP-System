@@ -43,9 +43,10 @@ A full-stack learning management system that gamifies creative learning through 
 
 ### Backend Setup
 
-1. **Clone repository and navigate**
+1. **Navigate to project root**
 ```bash
-cd c:\Users\Phant\Documents\Art-Learning-XP-System
+# Already in project directory, or:
+cd Art-Learning-XP-System
 ```
 
 2. **Create virtual environment**
@@ -72,7 +73,7 @@ Backend runs on `http://localhost:5000`
 
 ### Frontend Setup
 
-1. **Navigate to frontend**
+1. **Navigate to frontend directory**
 ```bash
 cd frontend
 ```
