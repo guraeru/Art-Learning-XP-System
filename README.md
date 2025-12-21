@@ -69,7 +69,9 @@ python -c "from app import app, db; app.app_context().push(); db.create_all()"
 ```bash
 python app.py
 ```
-Backend runs on `http://localhost:5000`
+Backend runs on:
+- `http://127.0.0.1:5000` - Local machine
+- `http://192.168.x.x:5000` - Local network access (replace with your machine's IP)
 
 ### Frontend Setup
 
