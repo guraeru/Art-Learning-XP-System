@@ -22,7 +22,7 @@ export default function Toast({ message, type, onClose, duration = 4000 }: Props
 
   return (
     <div
-      className={`fixed top-[4.5rem] right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg transition-all duration-300 ${
+      className={`fixed top-16 right-4 z-[70] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg transition-all duration-300 ${
         isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
       } ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`}
     >
