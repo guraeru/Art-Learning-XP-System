@@ -51,7 +51,7 @@ export default function BookReader() {
     if (viewMode === 'single' && totalPages > 0) {
       const fetchPage = async () => {
         try {
-          const url = `/api/books/${bookId}/page/${currentPage}?zoom=1`
+          const url = `/api/books/${bookId}/page/${currentPage}?zoom=2`
           console.log(`Fetching single page: ${url}`)
           const res = await fetch(url)
           
