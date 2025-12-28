@@ -8,8 +8,6 @@ import {
   BarChart3,
   Settings,
   Menu,
-  X,
-  Sparkles,
   Youtube,
 } from 'lucide-react'
 import { getStatus } from '../services/api'
@@ -44,48 +42,52 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white shadow-sm">
-        <div className="flex items-center justify-between px-4 h-16">
+      {/* Fixed Header with Toggle Button */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-white border-b h-14">
+        <div className="flex items-center px-4 h-full">
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-lg hover:bg-gray-100"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 rounded-full hover:bg-gray-100"
           >
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-bold gradient-text">Art Learning XP</h1>
-          <div className="w-10" />
+          <h1 className="text-lg font-bold gradient-text ml-4">Art Learning XP</h1>
         </div>
       </div>
 
-      {/* Sidebar */}
+      {/* Mini Sidebar for PC (icons only) */}
+      <aside className="hidden lg:flex fixed top-14 left-0 z-40 h-[calc(100%-3.5rem)] w-[72px] bg-transparent flex-col pt-3">
+        <nav className="flex-1 overflow-y-auto">
+          <ul className="space-y-1 px-1">
+            {navItems.map((item) => (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`
+                  }
+                  title={item.label}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="text-[10px] mt-1 font-medium leading-tight text-center">{item.label.length > 5 ? item.label.slice(0, 4) + '..' : item.label}</span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </aside>
+
+      {/* Full Sidebar (expandable) */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-72 bg-white shadow-xl transform transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed top-14 left-0 z-50 h-[calc(100%-3.5rem)] w-72 bg-white shadow-xl transform transition-transform duration-300 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="p-6 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="font-bold text-lg gradient-text">Art Learning</h1>
-                  <p className="text-xs text-gray-500">XP System</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
           {/* User Status */}
           {status && (
             <div className="p-4 border-b">
@@ -125,7 +127,12 @@ export default function Layout() {
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={() => {
+                      // モバイルの場合のみ閉じる
+                      if (window.innerWidth < 1024) {
+                        setSidebarOpen(false)
+                      }
+                    }}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
                         isActive
@@ -151,17 +158,19 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Overlay */}
+      {/* Overlay - Mobile only */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/30 z-40 top-14 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Main Content */}
-      <main className="lg:ml-72 pt-16 lg:pt-0 min-h-screen">
-        <div className="p-4 lg:p-8">
+      <main className={`pt-14 min-h-screen transition-all duration-300 ${
+        sidebarOpen ? 'lg:pl-72' : 'lg:pl-[72px]'
+      }`}>
+        <div className="p-4 lg:p-6">
           <Outlet />
         </div>
       </main>
