@@ -44,9 +44,9 @@ def extract_pdf_first_page(pdf_filepath):
         if pdf_doc.page_count < 1:
             return None, None
         
-        # Get first page and render as image with high quality (3x zoom = ~216 DPI)
+        # Get first page and render as image (300 dpi)
         first_page = pdf_doc[0]
-        pix = first_page.get_pixmap(matrix=fitz.Matrix(3, 3))
+        pix = first_page.get_pixmap(matrix=fitz.Matrix(1, 1))
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -61,7 +61,6 @@ def extract_pdf_first_page(pdf_filepath):
     except Exception as e:
         print(f"Error extracting PDF first page: {str(e)}")
         return None, None
-
 
 
 def normalize_file_path(file_path):
@@ -654,10 +653,10 @@ def get_book_pages_batch(id):
         
         start_page = request.args.get('start', 0, type=int)
         count = min(request.args.get('count', 5, type=int), 20)  # Max 20 pages per request
-        zoom = request.args.get('zoom', 1, type=int)
+        zoom = request.args.get('zoom', 2, type=int)
         
         if zoom < 1 or zoom > 4:
-            zoom = 1
+            zoom = 2
         
         try:
             import base64

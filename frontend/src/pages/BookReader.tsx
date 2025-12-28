@@ -99,7 +99,7 @@ export default function BookReader() {
 
         try {
           const res = await fetch(
-            `/api/books/${bookId}/pages/batch?start=${startPage}&count=${pagesPerRequest}&zoom=1`,
+            `/api/books/${bookId}/pages/batch?start=${startPage}&count=${pagesPerRequest}&zoom=2`,
             { signal: abortController.signal }
           )
 
@@ -419,7 +419,7 @@ export default function BookReader() {
           <div className="flex flex-col items-center py-4 px-4">
             {allPages.length > 0 ? (
               allPages.map((pageData, idx) => (
-                <div key={idx} className="bg-white rounded-lg shadow overflow-hidden max-w-xl w-full mb-4">
+                <div key={idx} className="bg-white rounded-lg shadow overflow-hidden max-w-4xl w-full mb-4">
                   <img
                     src={pageData.data}
                     alt={`Page ${idx + 1}`}
