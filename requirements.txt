@@ -5,4 +5,5 @@ Flask-Cors
 requests
 pytz
 PyMuPDF
+Pillow
 yt-dlp

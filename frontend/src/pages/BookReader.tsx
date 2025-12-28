@@ -1,9 +1,176 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Download, BookOpen, Grid3x3 } from 'lucide-react'
 import type { Book } from '../types'
 
 type ViewMode = 'select' | 'single' | 'all'
+
+// Priority-based page loader (Industry best practice - similar to Google Books/Kindle)
+class PageLoadManager {
+  private queue: Map<number, { priority: number; resolve: (data: string) => void; reject: (e: Error) => void }> = new Map()
+  private loading: Set<number> = new Set()
+  private loaded: Map<number, string> = new Map()
+  private maxConcurrent = 6  // Browser limit per domain
+  private abortController: AbortController
+  private bookId: string
+  private onPageLoaded: (pageNum: number, data: string) => void
+  private onProgress: (loaded: number) => void
+
+  constructor(
+    bookId: string,
+    onPageLoaded: (pageNum: number, data: string) => void,
+    onProgress: (loaded: number) => void
+  ) {
+    this.bookId = bookId
+    this.onPageLoaded = onPageLoaded
+    this.onProgress = onProgress
+    this.abortController = new AbortController()
+  }
+
+  // Update priorities based on viewport (called on scroll)
+  updatePriorities(visibleStart: number, visibleEnd: number, scrollDirection: 'down' | 'up') {
+    this.queue.forEach((item, pageNum) => {
+      // Visible pages get highest priority
+      if (pageNum >= visibleStart && pageNum <= visibleEnd) {
+        item.priority = 0
+      }
+      // Pages in scroll direction get next priority
+      else if (scrollDirection === 'down' && pageNum > visibleEnd && pageNum <= visibleEnd + 5) {
+        item.priority = 1
+      }
+      else if (scrollDirection === 'up' && pageNum < visibleStart && pageNum >= visibleStart - 5) {
+        item.priority = 1
+      }
+      // Nearby pages
+      else if (Math.abs(pageNum - visibleStart) <= 10 || Math.abs(pageNum - visibleEnd) <= 10) {
+        item.priority = 2
+      }
+      // Far pages
+      else {
+        item.priority = 3
+      }
+    })
+    
+    this.processQueue()
+  }
+
+  // Request a page (returns immediately if cached)
+  requestPage(pageNum: number, priority: number = 2): Promise<string> {
+    // Already loaded
+    if (this.loaded.has(pageNum)) {
+      return Promise.resolve(this.loaded.get(pageNum)!)
+    }
+
+    // Already in queue
+    if (this.queue.has(pageNum)) {
+      const item = this.queue.get(pageNum)!
+      item.priority = Math.min(item.priority, priority)  // Upgrade priority if needed
+      this.processQueue()
+      return new Promise((resolve) => {
+        const existing = this.queue.get(pageNum)!
+        const originalResolve = existing.resolve
+        existing.resolve = (data: string) => {
+          originalResolve(data)
+          resolve(data)
+        }
+      })
+    }
+
+    // Add to queue
+    return new Promise((resolve, reject) => {
+      this.queue.set(pageNum, { priority, resolve, reject })
+      this.processQueue()
+    })
+  }
+
+  private async processQueue() {
+    // Get available slots
+    const availableSlots = this.maxConcurrent - this.loading.size
+    if (availableSlots <= 0) return
+
+    // Sort queue by priority and get top items
+    const sorted = Array.from(this.queue.entries())
+      .filter(([pageNum]) => !this.loading.has(pageNum))
+      .sort((a, b) => a[1].priority - b[1].priority)
+      .slice(0, availableSlots)
+
+    for (const [pageNum, item] of sorted) {
+      this.loading.add(pageNum)
+      this.fetchPage(pageNum, item)
+    }
+  }
+
+  private async fetchPage(pageNum: number, item: { resolve: (data: string) => void; reject: (e: Error) => void }) {
+    try {
+      const res = await fetch(
+        `/api/books/${this.bookId}/page/${pageNum}?zoom=2`,
+        { signal: this.abortController.signal }
+      )
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const blob = await res.blob()
+      const dataUrl = await this.blobToDataUrl(blob)
+
+      this.loaded.set(pageNum, dataUrl)
+      this.queue.delete(pageNum)
+      this.loading.delete(pageNum)
+
+      item.resolve(dataUrl)
+      this.onPageLoaded(pageNum, dataUrl)
+      this.onProgress(this.loaded.size)
+
+      // Process next in queue
+      this.processQueue()
+    } catch (error) {
+      this.loading.delete(pageNum)
+      if (error instanceof Error && error.name !== 'AbortError') {
+        // Retry with lower priority
+        const existing = this.queue.get(pageNum)
+        if (existing) {
+          existing.priority = Math.min(existing.priority + 1, 5)
+        }
+        this.processQueue()
+      }
+    }
+  }
+
+  private blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  // Prefetch pages (low priority background loading)
+  prefetchRange(start: number, end: number) {
+    for (let i = start; i <= end; i++) {
+      if (!this.loaded.has(i) && !this.queue.has(i)) {
+        this.requestPage(i, 3)
+      }
+    }
+  }
+
+  isLoaded(pageNum: number): boolean {
+    return this.loaded.has(pageNum)
+  }
+
+  getLoadedData(pageNum: number): string | undefined {
+    return this.loaded.get(pageNum)
+  }
+
+  cancel() {
+    this.abortController.abort()
+    this.queue.clear()
+    this.loading.clear()
+  }
+
+  getLoadedCount(): number {
+    return this.loaded.size
+  }
+}
 
 export default function BookReader() {
   const { bookId } = useParams<{ bookId: string }>()
@@ -16,11 +183,7 @@ export default function BookReader() {
   const [loading, setLoading] = useState(true)
   const [pageImage, setPageImage] = useState<string | null>(null)
   const [allPages, setAllPages] = useState<{ page_num: number; data: string }[]>([])
-  const [loadingPages, setLoadingPages] = useState(false)
   const [loadedPageCount, setLoadedPageCount] = useState(0)
-
-  // Ref to track if the component is still mounted and fetches should continue
-  const isCancelledRef = useRef(false)
 
   // Fetch book info
   useEffect(() => {
@@ -79,92 +242,108 @@ export default function BookReader() {
     }
   }, [bookId, currentPage, viewMode, totalPages])
 
-  // Fetch all pages with lazy loading
+  // Page load manager ref
+  const loadManagerRef = useRef<PageLoadManager | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const lastScrollTop = useRef(0)
+  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+
+  // Initialize page loading for all-pages view
   useEffect(() => {
-    if (viewMode === 'all' && totalPages > 0) {
-      // Reset cancel flag when starting new fetch
-      isCancelledRef.current = false
-      setLoadingPages(true)
-      const pagesPerRequest = 5
-      const pageMap: Map<number, { page_num: number; data: string }> = new Map()
-      let loadedPages = 0
-      const abortController = new AbortController()
+    if (viewMode === 'all' && totalPages > 0 && bookId) {
+      setLoadedPageCount(0)
+      setAllPages([])
 
-      const fetchPagesInBatch = async (startPage: number): Promise<void> => {
-        // Check if cancelled before sending request
-        if (isCancelledRef.current) {
-          console.log('Fetch cancelled before request')
-          return
-        }
-
-        try {
-          const res = await fetch(
-            `/api/books/${bookId}/pages/batch?start=${startPage}&count=${pagesPerRequest}&zoom=2`,
-            { signal: abortController.signal }
-          )
-
-          // Check if cancelled after receiving response
-          if (isCancelledRef.current) {
-            console.log('Fetch cancelled after response')
-            return
-          }
-
-          if (!res.ok) {
-            console.error(`Failed to fetch batch starting at ${startPage}: ${res.status}`)
-            return
-          }
-
-          const data = await res.json()
-
-          // Check if cancelled before processing data
-          if (isCancelledRef.current) {
-            console.log('Fetch cancelled before processing')
-            return
-          }
-
-          const newPages: { page_num: number; data: string }[] = []
-
-          data.pages.forEach((page: { page_num: number; data: string }) => {
-            pageMap.set(page.page_num, page)
-            newPages.push(page)
-            loadedPages++
-            setLoadedPageCount(loadedPages)
+      // Create page manager
+      const manager = new PageLoadManager(
+        bookId,
+        (pageNum, data) => {
+          // Update allPages when a page is loaded
+          setAllPages(prev => {
+            const newPages = [...prev]
+            const existingIndex = newPages.findIndex(p => p.page_num === pageNum)
+            if (existingIndex >= 0) {
+              newPages[existingIndex] = { page_num: pageNum, data }
+            } else {
+              newPages.push({ page_num: pageNum, data })
+              newPages.sort((a, b) => a.page_num - b.page_num)
+            }
+            return newPages
           })
-
-          // Convert map to sorted array
-          const sortedPages = Array.from(pageMap.values()).sort((a, b) => a.page_num - b.page_num)
-          setAllPages(sortedPages)
-        } catch (error) {
-          if (error instanceof Error && error.name === 'AbortError') {
-            console.log('Page fetching aborted')
-          } else {
-            console.error(`Error fetching batch at ${startPage}:`, error)
-          }
+        },
+        (loaded) => {
+          setLoadedPageCount(loaded)
         }
+      )
+
+      loadManagerRef.current = manager
+
+      // Initial load: first 3 pages with highest priority, then prefetch next 10
+      for (let i = 0; i < Math.min(3, totalPages); i++) {
+        manager.requestPage(i, 0)
       }
+      manager.prefetchRange(3, Math.min(15, totalPages - 1))
+      
+      // Background prefetch all remaining pages
+      setTimeout(() => {
+        manager.prefetchRange(16, totalPages - 1)
+      }, 500)
 
-      // Queue all batch fetches to execute sequentially (one at a time)
-      // This ensures cancel is effective immediately
-      let fetchPromise = Promise.resolve()
-      for (let i = 0; i < totalPages; i += pagesPerRequest) {
-        fetchPromise = fetchPromise.then(() => {
-          if (!isCancelledRef.current) {
-            return fetchPagesInBatch(i)
-          }
-        })
-      }
-
-      fetchPromise.finally(() => {
-        setLoadingPages(false)
-      })
-
-      // Cleanup function - cancel immediately with highest priority
       return () => {
-        isCancelledRef.current = true
-        abortController.abort()
+        manager.cancel()
+        loadManagerRef.current = null
       }
     }
   }, [viewMode, bookId, totalPages])
+
+  // Scroll handler for dynamic priority adjustment
+  const handleScroll = useCallback(() => {
+    if (!loadManagerRef.current || !scrollContainerRef.current) return
+
+    const container = scrollContainerRef.current
+    const scrollTop = container.scrollTop
+    const scrollDirection = scrollTop > lastScrollTop.current ? 'down' : 'up'
+    lastScrollTop.current = scrollTop
+
+    // Find visible pages
+    const containerRect = container.getBoundingClientRect()
+    let visibleStart = 0
+    let visibleEnd = 0
+
+    pageRefs.current.forEach((el, pageNum) => {
+      const rect = el.getBoundingClientRect()
+      const isVisible = rect.bottom > containerRect.top && rect.top < containerRect.bottom
+
+      if (isVisible) {
+        if (visibleStart === 0 || pageNum < visibleStart) visibleStart = pageNum
+        if (pageNum > visibleEnd) visibleEnd = pageNum
+      }
+    })
+
+    // Update priorities based on what's visible
+    loadManagerRef.current.updatePriorities(visibleStart, visibleEnd, scrollDirection)
+
+    // Prefetch ahead in scroll direction
+    if (scrollDirection === 'down') {
+      loadManagerRef.current.prefetchRange(visibleEnd + 1, Math.min(visibleEnd + 10, totalPages - 1))
+    } else {
+      loadManagerRef.current.prefetchRange(Math.max(0, visibleStart - 10), visibleStart - 1)
+    }
+  }, [totalPages])
+
+  // Throttled scroll handler
+  const throttledScrollHandler = useCallback(() => {
+    let ticking = false
+    return () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScroll()
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+  }, [handleScroll])
 
   const handleDownload = async () => {
     try {
@@ -395,12 +574,14 @@ export default function BookReader() {
     )
   }
 
-  // All Pages View
+  // All Pages View - Priority-based loading with viewport awareness
   if (viewMode === 'all') {
+    const scrollHandler = throttledScrollHandler()
+    
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between bg-white rounded-xl p-4 shadow-sm sticky top-0 z-10">
           <button
             onClick={() => setViewMode('select')}
             className="flex items-center gap-2 text-primary-500 hover:text-primary-600 font-medium"
@@ -411,33 +592,60 @@ export default function BookReader() {
 
           <h2 className="text-lg font-bold text-gray-900">{book.title}</h2>
 
-          <div className="w-20" />
+          <div className="flex items-center gap-2">
+            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary-500 transition-all duration-300"
+                style={{ width: `${(loadedPageCount / totalPages) * 100}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500 w-16 text-right">
+              {loadedPageCount}/{totalPages}
+            </span>
+          </div>
         </div>
 
-        {/* Pages List - Single Column with scrolling */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Pages List - All pages with placeholders */}
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto"
+          onScroll={scrollHandler}
+        >
           <div className="flex flex-col items-center py-4 px-4">
-            {allPages.length > 0 ? (
-              allPages.map((pageData, idx) => (
-                <div key={idx} className="bg-white rounded-lg shadow overflow-hidden max-w-4xl w-full mb-4">
-                  <img
-                    src={pageData.data}
-                    alt={`Page ${idx + 1}`}
-                    className="w-full h-auto block"
-                  />
-                  <p className="text-center py-2 text-xs text-gray-500">ページ {idx + 1}</p>
+            {Array.from({ length: totalPages }, (_, idx) => {
+              const pageData = allPages.find(p => p.page_num === idx)
+              
+              return (
+                <div 
+                  key={idx}
+                  ref={(el) => {
+                    if (el) pageRefs.current.set(idx, el)
+                  }}
+                  className="bg-white rounded-lg shadow overflow-hidden max-w-4xl w-full mb-4"
+                >
+                  {pageData ? (
+                    <img
+                      src={pageData.data}
+                      alt={`Page ${idx + 1}`}
+                      className="w-full h-auto block"
+                    />
+                  ) : (
+                    <div 
+                      className="w-full bg-gray-100 flex items-center justify-center"
+                      style={{ aspectRatio: '0.707' }}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="animate-pulse w-8 h-8 rounded-full bg-gray-300" />
+                        <span className="text-sm text-gray-400">読み込み中...</span>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-center py-2 text-xs text-gray-500">
+                    ページ {idx + 1} / {totalPages}
+                  </p>
                 </div>
-              ))
-            ) : loadingPages ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="animate-spin w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full" />
-                <p className="text-gray-600">読み込み中... {loadedPageCount} / {totalPages}</p>
-              </div>
-            ) : (
-              <div className="text-center py-20">
-                <p className="text-gray-500">ページを読み込めませんでした</p>
-              </div>
-            )}
+              )
+            })}
           </div>
         </div>
       </div>

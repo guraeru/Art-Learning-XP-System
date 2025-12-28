@@ -10,6 +10,8 @@ from xp_core import XPCalculator, Constants
 from werkzeug.utils import secure_filename
 import os
 import fitz  # PyMuPDF for PDF rendering
+import io
+from PIL import Image
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -610,13 +612,39 @@ def get_book_page(id, page_num):
             # Render page to image with zoom
             mat = fitz.Matrix(zoom, zoom)
             pix = page.get_pixmap(matrix=mat)
-            
-            # Convert to PNG bytes
-            png_data = pix.tobytes(output='png')
             doc.close()
             
+            # Get quality parameter (default 85 for good balance)
+            quality = request.args.get('quality', 85, type=int)
+            quality = max(50, min(95, quality))  # Clamp to 50-95
+            
+            # Get format preference from Accept header or query param
+            preferred_format = request.args.get('format', 'jpeg').lower()
+            accept_header = request.headers.get('Accept', '')
+            
+            # Convert pixmap to PIL Image for compression
+            img_data = pix.tobytes("ppm")  # Get raw PPM data
+            pil_image = Image.open(io.BytesIO(img_data))
+            
+            # Convert to RGB if necessary (JPEG doesn't support alpha)
+            if pil_image.mode in ('RGBA', 'LA', 'P'):
+                pil_image = pil_image.convert('RGB')
+            
+            output = io.BytesIO()
+            
+            # Choose format based on preference and browser support
+            if preferred_format == 'webp' or 'image/webp' in accept_header:
+                pil_image.save(output, format='WEBP', quality=quality, method=4)
+                mimetype = 'image/webp'
+            else:
+                # Use JPEG for better compression than PNG
+                pil_image.save(output, format='JPEG', quality=quality, optimize=True)
+                mimetype = 'image/jpeg'
+            
+            output.seek(0)
+            
             from flask import Response
-            return Response(png_data, mimetype='image/png')
+            return Response(output.getvalue(), mimetype=mimetype)
         
         except Exception as e:
             return jsonify({'error': f'Failed to render page: {str(e)}'}), 500
@@ -652,7 +680,7 @@ def get_book_pages_batch(id):
             return jsonify({'error': f'PDF file not found: {pdf_path}'}), 404
         
         start_page = request.args.get('start', 0, type=int)
-        count = min(request.args.get('count', 5, type=int), 20)  # Max 20 pages per request
+        count = min(request.args.get('count', 10, type=int), 30)  # Max 30 pages per request
         zoom = request.args.get('zoom', 2, type=int)
         
         if zoom < 1 or zoom > 4:
@@ -666,18 +694,46 @@ def get_book_pages_batch(id):
             if start_page >= total:
                 return jsonify({'error': 'Start page is out of range'}), 400
             
+            # Get quality parameter (default 85 for good balance)
+            quality = request.args.get('quality', 85, type=int)
+            quality = max(50, min(95, quality))  # Clamp to 50-95
+            
+            # Get format preference
+            preferred_format = request.args.get('format', 'jpeg').lower()
+            accept_header = request.headers.get('Accept', '')
+            use_webp = preferred_format == 'webp' or 'image/webp' in accept_header
+            
             pages_data = []
             for i in range(start_page, min(start_page + count, total)):
                 page = doc[i]
                 mat = fitz.Matrix(zoom, zoom)
                 pix = page.get_pixmap(matrix=mat)
-                png_bytes = pix.tobytes(output='png')
+                
+                # Convert to PIL Image for compression
+                img_data = pix.tobytes("ppm")
+                pil_image = Image.open(io.BytesIO(img_data))
+                
+                # Convert to RGB if necessary
+                if pil_image.mode in ('RGBA', 'LA', 'P'):
+                    pil_image = pil_image.convert('RGB')
+                
+                output = io.BytesIO()
+                
+                if use_webp:
+                    pil_image.save(output, format='WEBP', quality=quality, method=4)
+                    mimetype = 'image/webp'
+                else:
+                    pil_image.save(output, format='JPEG', quality=quality, optimize=True)
+                    mimetype = 'image/jpeg'
+                
+                output.seek(0)
+                compressed_bytes = output.getvalue()
                 
                 # Convert to base64 for JSON transmission
-                b64_png = base64.b64encode(png_bytes).decode('utf-8')
+                b64_data = base64.b64encode(compressed_bytes).decode('utf-8')
                 pages_data.append({
                     'page_num': i,
-                    'data': f'data:image/png;base64,{b64_png}'
+                    'data': f'data:{mimetype};base64,{b64_data}'
                 })
             
             doc.close()
