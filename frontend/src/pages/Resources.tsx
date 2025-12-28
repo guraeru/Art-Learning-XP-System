@@ -81,12 +81,12 @@ export default function Resources() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
-            <BookOpen className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">本棚</h1>
-            <p className="text-gray-500">学習教材を管理</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">本棚</h1>
+            <p className="text-gray-500 text-sm sm:text-base">学習教材を管理</p>
           </div>
         </div>
       </div>
@@ -162,8 +162,8 @@ export default function Resources() {
 
           {/* Pagination */}
           {pagination.total_pages > 1 && (
-            <div className="flex items-center justify-between bg-white rounded-xl p-4 shadow-sm">
-              <div className="text-sm text-gray-600">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-xl p-4 shadow-sm">
+              <div className="text-sm text-gray-600 text-center sm:text-left">
                 ページ {pagination.page} / {pagination.total_pages} （全{pagination.total}件）
               </div>
 
@@ -171,10 +171,10 @@ export default function Resources() {
                 <button
                   onClick={() => goToPage(pagination.page - 1)}
                   disabled={!pagination.has_prev}
-                  className="flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  前へ
+                  <span className="hidden sm:inline">前へ</span>
                 </button>
 
                 <div className="flex items-center gap-1">
@@ -188,7 +188,7 @@ export default function Resources() {
                       <button
                         key={pageNum}
                         onClick={() => goToPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-colors ${
+                        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg font-medium transition-colors text-sm ${
                           pageNum === pagination.page
                             ? 'bg-primary-500 text-white'
                             : 'border border-gray-300 hover:bg-gray-50'
@@ -203,9 +203,9 @@ export default function Resources() {
                 <button
                   onClick={() => goToPage(pagination.page + 1)}
                   disabled={!pagination.has_next}
-                  className="flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
-                  次へ
+                  <span className="hidden sm:inline">次へ</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>

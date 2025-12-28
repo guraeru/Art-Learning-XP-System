@@ -70,3 +70,20 @@ body {
   background-color: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(16px);
 }
+
+/* Hide scrollbar for tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  button, a, input, select {
+    min-height: 44px;
+  }
+}

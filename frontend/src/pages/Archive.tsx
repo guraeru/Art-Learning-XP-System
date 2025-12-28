@@ -59,14 +59,14 @@ export default function Archive() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
-            <ArchiveIcon className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <ArchiveIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">アーカイブ</h1>
-            <p className="text-gray-500">過去の学習記録を振り返る</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">アーカイブ</h1>
+            <p className="text-gray-500 text-sm sm:text-base">過去の学習記録を振り返る</p>
           </div>
         </div>
 
@@ -76,7 +76,7 @@ export default function Archive() {
             <select
               value={selectedYear || ''}
               onChange={(e) => setSelectedYear(e.target.value)}
-              className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-2 pr-10 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-2 pr-10 focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm sm:text-base"
             >
               {archiveData.sorted_years.map((year) => (
                 <option key={year} value={year}>
@@ -91,26 +91,26 @@ export default function Archive() {
 
       {/* Summary Stats */}
       {currentRecords.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-gray-500 text-sm">総記録数</p>
-            <p className="text-2xl font-bold text-gray-800">{currentRecords.length}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm">
+            <p className="text-gray-500 text-xs sm:text-sm">総記録数</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-800">{currentRecords.length}</p>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-gray-500 text-sm">獲得XP</p>
-            <p className="text-2xl font-bold text-primary-600">
+          <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm">
+            <p className="text-gray-500 text-xs sm:text-sm">獲得XP</p>
+            <p className="text-xl sm:text-2xl font-bold text-primary-600">
               {currentRecords.reduce((sum, r) => sum + r.xp_gained, 0).toLocaleString()}
             </p>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-gray-500 text-sm">時間学習</p>
-            <p className="text-2xl font-bold text-blue-600">
+          <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm">
+            <p className="text-gray-500 text-xs sm:text-sm">時間学習</p>
+            <p className="text-xl sm:text-2xl font-bold text-blue-600">
               {currentRecords.filter((r) => r.type === '時間学習').length}
             </p>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <p className="text-gray-500 text-sm">作品</p>
-            <p className="text-2xl font-bold text-purple-600">
+          <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm">
+            <p className="text-gray-500 text-xs sm:text-sm">作品</p>
+            <p className="text-xl sm:text-2xl font-bold text-purple-600">
               {currentRecords.filter((r) => r.type !== '時間学習').length}
             </p>
           </div>

@@ -758,7 +758,7 @@ export default function Admin() {
                 <Plus className="w-4 h-4" />
                 プレイリストを追加
               </h3>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={playlistUrl}
@@ -767,7 +767,7 @@ export default function Admin() {
                   className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500"
                   required
                 />
-                <Button type="submit" variant="danger" size="lg">
+                <Button type="submit" variant="danger" size="lg" className="w-full sm:w-auto">
                   追加
                 </Button>
               </div>

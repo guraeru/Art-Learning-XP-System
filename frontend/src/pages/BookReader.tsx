@@ -221,7 +221,7 @@ export default function BookReader() {
   // Select View Mode
   if (viewMode === 'select') {
     return (
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         <button
           onClick={() => navigate('/resources')}
           className="flex items-center gap-2 text-primary-500 hover:text-primary-600 font-medium"
@@ -230,10 +230,10 @@ export default function BookReader() {
           本棚に戻る
         </button>
 
-        <div className="bg-white rounded-2xl p-8 shadow-sm">
-          <div className="flex gap-8 mb-8">
+        <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-sm">
+          <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 mb-6 sm:mb-8">
             {/* Cover */}
-            <div className="w-40 flex-shrink-0">
+            <div className="w-32 sm:w-40 flex-shrink-0 mx-auto sm:mx-0">
               {book.cover_image_path ? (
                 <img
                   src={`/uploads/${book.cover_image_path}`}
@@ -248,54 +248,54 @@ export default function BookReader() {
             </div>
 
             {/* Info */}
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">{book.title}</h1>
+            <div className="flex-1 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">{book.title}</h1>
               {book.author && (
-                <p className="text-lg text-gray-800 mb-4 font-medium">著者: {book.author}</p>
+                <p className="text-base sm:text-lg text-gray-800 mb-2 sm:mb-4 font-medium">著者: {book.author}</p>
               )}
               {book.description && (
-                <p className="text-gray-700 mb-8 leading-relaxed">{book.description}</p>
+                <p className="text-gray-700 mb-4 sm:mb-8 leading-relaxed text-sm sm:text-base">{book.description}</p>
               )}
-              <p className="text-sm text-gray-600 mb-8">全 {totalPages} ページ</p>
+              <p className="text-sm text-gray-600 mb-4 sm:mb-8">全 {totalPages} ページ</p>
 
               <div className="space-y-3">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">閲覧方法を選択</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">閲覧方法を選択</h2>
                 
                 <button
                   onClick={() => setViewMode('single')}
-                  className="w-full p-4 border-2 border-primary-500 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors text-left"
+                  className="w-full p-3 sm:p-4 border-2 border-primary-500 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <ChevronRight className="w-6 h-6 text-primary-500" />
+                    <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-primary-500 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold text-gray-900">1ページずつ読む</p>
-                      <p className="text-sm text-gray-600">ページ送りで読み進める</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base">1ページずつ読む</p>
+                      <p className="text-xs sm:text-sm text-gray-600">ページ送りで読み進める</p>
                     </div>
                   </div>
                 </button>
 
                 <button
                   onClick={() => setViewMode('all')}
-                  className="w-full p-4 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-xl transition-colors text-left"
+                  className="w-full p-3 sm:p-4 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-xl transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <Grid3x3 className="w-6 h-6 text-gray-600" />
+                    <Grid3x3 className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold text-gray-900">すべて表示</p>
-                      <p className="text-sm text-gray-600">全ページをスクロールで閲覧</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base">すべて表示</p>
+                      <p className="text-xs sm:text-sm text-gray-600">全ページをスクロールで閲覧</p>
                     </div>
                   </div>
                 </button>
 
                 <button
                   onClick={handleDownload}
-                  className="w-full p-4 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-xl transition-colors text-left"
+                  className="w-full p-3 sm:p-4 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-xl transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <Download className="w-6 h-6 text-gray-600" />
+                    <Download className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold text-gray-900">ダウンロード</p>
-                      <p className="text-sm text-gray-600">PDFファイルをダウンロード</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base">ダウンロード</p>
+                      <p className="text-xs sm:text-sm text-gray-600">PDFファイルをダウンロード</p>
                     </div>
                   </div>
                 </button>
@@ -312,30 +312,30 @@ export default function BookReader() {
     return (
       <div className="flex flex-col h-screen bg-black">
         {/* Header */}
-        <div className="flex items-center justify-between bg-gray-900 p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between bg-gray-900 p-2 sm:p-4 border-b border-gray-700">
           <button
             onClick={() => setViewMode('select')}
-            className="flex items-center gap-2 text-white hover:text-gray-300 font-medium"
+            className="flex items-center gap-1 sm:gap-2 text-white hover:text-gray-300 font-medium text-sm sm:text-base"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             戻る
           </button>
 
-          <div className="text-center">
-            <h2 className="text-lg font-bold text-white">{book.title}</h2>
-            <p className="text-sm text-gray-400">
+          <div className="text-center flex-1 min-w-0 px-2">
+            <h2 className="text-sm sm:text-lg font-bold text-white truncate">{book.title}</h2>
+            <p className="text-xs sm:text-sm text-gray-400">
               ページ <input
                 type="number"
                 min="1"
                 max={totalPages}
                 value={currentPage + 1}
                 onChange={handlePageInput}
-                className="w-12 px-2 py-1 border border-gray-600 rounded bg-gray-800 text-white text-center"
+                className="w-10 sm:w-12 px-1 sm:px-2 py-1 border border-gray-600 rounded bg-gray-800 text-white text-center text-xs sm:text-sm"
               /> / {totalPages}
             </p>
           </div>
 
-          <div className="w-20" />
+          <div className="w-12 sm:w-20" />
         </div>
 
         {/* Main Content - Full Page */}
@@ -352,17 +352,17 @@ export default function BookReader() {
         </div>
 
         {/* Navigation Footer */}
-        <div className="flex items-center justify-between bg-gray-900 p-4 border-t border-gray-700">
+        <div className="flex items-center justify-between bg-gray-900 p-2 sm:p-4 border-t border-gray-700 gap-2">
           <button
             onClick={goPrevPage}
             disabled={currentPage === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1 px-2 sm:px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex-shrink-0"
           >
-            <ChevronLeft className="w-5 h-5" />
-            前
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline">前</span>
           </button>
 
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto flex-1 justify-center scrollbar-hide">
             {Array.from({ length: Math.min(10, totalPages) }, (_, i) => {
               const pageNum = Math.max(0, Math.min(currentPage - 4, totalPages - 10)) + i
               if (pageNum >= totalPages) return null
@@ -370,7 +370,7 @@ export default function BookReader() {
                 <button
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
-                  className={`w-8 h-8 rounded text-xs font-medium transition-colors ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded text-xs font-medium transition-colors flex-shrink-0 ${
                     pageNum === currentPage
                       ? 'bg-primary-500 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -385,10 +385,10 @@ export default function BookReader() {
           <button
             onClick={goNextPage}
             disabled={currentPage === totalPages - 1}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1 px-2 sm:px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm flex-shrink-0"
           >
-            次
-            <ChevronRight className="w-5 h-5" />
+            <span className="hidden sm:inline">次</span>
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>

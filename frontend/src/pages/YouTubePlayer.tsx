@@ -109,19 +109,33 @@ export default function YouTubePlayer() {
     })
   }, [playlistId])
 
-  // Scroll to current video in playlist
+  // Scroll to current video in playlist (only within the list container, NOT the page)
   useEffect(() => {
-    if (!playlistContainerRef.current) return
+    if (activeTab !== 'videos') return
     
-    // Get the current video item element
-    const currentVideoItem = playlistContainerRef.current.querySelector(
-      `[data-video-index="${currentIndex}"]`
-    )
+    // Delay to ensure the container is rendered
+    const timer = setTimeout(() => {
+      const container = playlistContainerRef.current
+      if (!container) return
+      
+      const currentVideoItem = container.querySelector(
+        `[data-video-index="${currentIndex}"]`
+      ) as HTMLElement | null
+      
+      if (currentVideoItem) {
+        // Calculate position relative to container
+        const containerRect = container.getBoundingClientRect()
+        const itemRect = currentVideoItem.getBoundingClientRect()
+        
+        // Current scroll position + item position relative to container - half container height + half item height
+        const scrollTarget = container.scrollTop + (itemRect.top - containerRect.top) - (containerRect.height / 2) + (itemRect.height / 2)
+        
+        container.scrollTop = Math.max(0, scrollTarget)
+      }
+    }, 100)
     
-    if (currentVideoItem) {
-      currentVideoItem.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [currentIndex])
+    return () => clearTimeout(timer)
+  }, [currentIndex, activeTab])
 
   // Initialize player
   useEffect(() => {
@@ -242,67 +256,67 @@ export default function YouTubePlayer() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <Link
           to="/youtube"
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
         >
-          <ArrowLeft className="w-6 h-6" />
+          <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-800">{playlist.title}</h1>
-          <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-800 truncate">{playlist.title}</h1>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 mt-1">
             <span className="flex items-center gap-1">
-              <Youtube className="w-4 h-4" />
+              <Youtube className="w-3 h-3 sm:w-4 sm:h-4" />
               {playlist?.videos?.length || 0} 動画
             </span>
             <span className="flex items-center gap-1">
-              <CheckCircle className="w-4 h-4 text-green-500" />
+              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
               {playlist.total_completed} 完了
             </span>
             <span className="flex items-center gap-1">
-              <Trophy className="w-4 h-4 text-primary-500" />
+              <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-primary-500" />
               {playlist?.progress_rate || 0}%
             </span>
           </div>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Video Player */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-4">
           <div className="bg-black rounded-2xl overflow-hidden aspect-video" ref={containerRef}>
             <div id="youtube-player" className="w-full h-full" />
           </div>
 
           {/* Controls */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+          <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 <button
                   onClick={prevVideo}
                   disabled={currentIndex === 0}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <SkipBack className="w-6 h-6" />
+                  <SkipBack className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
                 <button
                   onClick={nextVideo}
                   disabled={currentIndex === (playlist?.videos?.length || 0) - 1}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <SkipForward className="w-6 h-6" />
+                  <SkipForward className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
-              <div className="text-center">
-                <p className="font-medium text-gray-800 truncate max-w-md">
+              <div className="text-center min-w-0 flex-1">
+                <p className="font-medium text-gray-800 truncate text-sm sm:text-base">
                   {currentVideo?.title || `動画 ${currentIndex + 1}`}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-xs sm:text-sm text-gray-500">
                   {currentIndex + 1} / {playlist?.videos?.length || 0}
                 </p>
               </div>
-              <div className="w-24" />
+              <div className="w-12 sm:w-24 flex-shrink-0" />
             </div>
           </div>
         </div>
@@ -353,7 +367,7 @@ export default function YouTubePlayer() {
 
           {/* Tab Content */}
           {activeTab === 'videos' ? (
-            <div className="max-h-[600px] overflow-auto" ref={playlistContainerRef}>
+            <div className="max-h-[50vh] sm:max-h-[600px] overflow-y-auto overscroll-contain" ref={playlistContainerRef}>
               {playlist?.videos?.map((video, index) => (
                 <div
                   key={video.id}

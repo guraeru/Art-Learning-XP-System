@@ -43,19 +43,19 @@ export default function MyPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
-          <User className="w-6 h-6 text-white" />
+        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">マイページ</h1>
-          <p className="text-gray-500">あなたの成長を確認しましょう</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">マイページ</h1>
+          <p className="text-gray-500 text-sm sm:text-base">あなたの成長を確認しましょう</p>
         </div>
       </div>
 
       {/* XP Progress */}
       {status && <XPProgressCard status={status} />}
 
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Works Gallery */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl p-6 shadow-sm">

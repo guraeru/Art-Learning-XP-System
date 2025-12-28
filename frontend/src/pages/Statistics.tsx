@@ -85,14 +85,14 @@ export default function Statistics() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
             <BarChart3 className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">統計・分析</h1>
-            <p className="text-gray-500">学習の傾向を把握しましょう</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">統計・分析</h1>
+            <p className="text-gray-500 text-sm sm:text-base">学習の傾向を把握しましょう</p>
           </div>
         </div>
 
@@ -100,14 +100,14 @@ export default function Statistics() {
         <div className="flex gap-2">
           <button
             onClick={() => exportCSV()}
-            className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors text-sm sm:text-base"
           >
             <Download className="w-4 h-4" />
             CSV
           </button>
           <button
             onClick={() => exportJSON()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors text-sm sm:text-base"
           >
             <Download className="w-4 h-4" />
             JSON
@@ -119,7 +119,7 @@ export default function Statistics() {
       <ActivityHeatmap />
 
       {/* Charts Grid */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* XP by Technique */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-6">

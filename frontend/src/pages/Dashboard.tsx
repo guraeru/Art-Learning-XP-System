@@ -126,12 +126,12 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">ダッシュボード</h1>
-          <p className="text-gray-600 mt-1 font-medium">今日も学習を楽しみましょう！</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">ダッシュボード</h1>
+          <p className="text-gray-600 mt-1 font-medium text-sm sm:text-base">今日も学習を楽しみましょう！</p>
         </div>
-        <div className="hidden md:flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-xl shadow-lg">
-          <Trophy className="w-5 h-5" />
-          <span className="font-semibold">{status?.total_xp.toLocaleString()} XP</span>
+        <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 sm:px-4 py-2 rounded-xl shadow-lg">
+          <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span className="font-semibold text-sm sm:text-base">{status?.total_xp.toLocaleString()} XP</span>
         </div>
       </div>
 
@@ -187,7 +187,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Grid */}
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Forms Section */}
         <div className="lg:col-span-2 space-y-6">
           {/* Time Learning Form */}
