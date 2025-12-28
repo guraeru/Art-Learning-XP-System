@@ -44,9 +44,9 @@ def extract_pdf_first_page(pdf_filepath):
         if pdf_doc.page_count < 1:
             return None, None
         
-        # Get first page and render as image (300 dpi)
+        # Get first page and render as image with high quality (3x zoom = ~216 DPI)
         first_page = pdf_doc[0]
-        pix = first_page.get_pixmap(matrix=fitz.Matrix(1, 1))
+        pix = first_page.get_pixmap(matrix=fitz.Matrix(3, 3))
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -61,6 +61,7 @@ def extract_pdf_first_page(pdf_filepath):
     except Exception as e:
         print(f"Error extracting PDF first page: {str(e)}")
         return None, None
+
 
 
 def normalize_file_path(file_path):
