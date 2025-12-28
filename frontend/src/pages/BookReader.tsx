@@ -608,9 +608,9 @@ export default function BookReader() {
     const scrollHandler = throttledScrollHandler()
     
     return (
-      <div className="space-y-4 h-full flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between bg-white rounded-xl p-4 shadow-sm sticky top-0 z-10">
+      <div className="h-full flex flex-col">
+        {/* Header - Fixed outside scroll container */}
+        <div className="flex items-center justify-between bg-white rounded-xl p-4 shadow-sm z-10 flex-shrink-0">
           <button
             onClick={() => setViewMode('select')}
             className="flex items-center gap-2 text-primary-500 hover:text-primary-600 font-medium"
