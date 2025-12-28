@@ -164,7 +164,7 @@ export default function Layout() {
           {/* Footer */}
           <div className="p-4 border-t">
             <p className="text-xs text-center text-gray-400">
-              © 2024 Art Learning XP System
+              © 2025 Art Learning XP System
             </p>
           </div>
         </div>
