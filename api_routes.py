@@ -792,27 +792,71 @@ def delete_link(id):
 # --- YouTube Playlists API ---
 @api_bp.route('/playlists', methods=['GET'])
 def get_playlists():
-    """Get all YouTube playlists"""
+    """Get all YouTube playlists - optimized with caching"""
+    from datetime import datetime, timedelta
+    
     playlists = YouTubePlaylist.query.order_by(YouTubePlaylist.added_date.desc()).all()
     
     result = []
+    playlists_to_update = []  # キャッシュ更新が必要なプレイリスト
+    
     for p in playlists:
-        # Get progress info
+        # 完了した動画数を取得（DBのみ、高速）
         video_views = VideoView.query.filter_by(playlist_id=p.id).all()
-        total_videos = len(video_views)
         completed_videos = sum(1 for v in video_views if v.is_completed)
+        
+        # キャッシュされた動画数を使用
+        total_videos = p.cached_video_count or 0
+        thumbnail_url = p.thumbnail_url
+        
+        # キャッシュが古いか存在しない場合は更新リストに追加
+        cache_age = timedelta(hours=24)  # 24時間でキャッシュ更新
+        needs_update = (
+            not p.cache_updated_at or 
+            (datetime.utcnow() - p.cache_updated_at) > cache_age or
+            total_videos == 0 or
+            not thumbnail_url or 
+            thumbnail_url.startswith('<')
+        )
+        
+        if needs_update:
+            playlists_to_update.append(p)
         
         result.append({
             'id': p.id,
             'playlist_id': p.playlist_id,
             'title': p.title,
             'description': p.description,
-            'thumbnail_url': p.thumbnail_url,
+            'thumbnail_url': thumbnail_url if thumbnail_url and not thumbnail_url.startswith('<') else None,
             'added_date': p.added_date.isoformat() if p.added_date else None,
             'total_videos': total_videos,
             'completed_videos': completed_videos,
             'progress_rate': round((completed_videos / total_videos * 100) if total_videos > 0 else 0, 1)
         })
+    
+    # キャッシュ更新が必要なプレイリストがあれば、バックグラウンドで更新
+    if playlists_to_update:
+        from app import get_youtube_playlist_video_ids
+        import threading
+        
+        def update_cache():
+            from app import app
+            with app.app_context():
+                for p in playlists_to_update:
+                    try:
+                        video_ids = get_youtube_playlist_video_ids(p.playlist_id)
+                        if video_ids:
+                            p.cached_video_count = len(video_ids)
+                            if not p.thumbnail_url or p.thumbnail_url.startswith('<'):
+                                p.thumbnail_url = f'https://i.ytimg.com/vi/{video_ids[0]}/hqdefault.jpg'
+                            p.cache_updated_at = datetime.utcnow()
+                            db.session.commit()
+                    except Exception as e:
+                        print(f"[WARNING] Failed to update cache for playlist {p.id}: {e}")
+        
+        thread = threading.Thread(target=update_cache)
+        thread.daemon = True
+        thread.start()
     
     return jsonify(result)
 
@@ -1466,7 +1510,7 @@ def create_playlist():
             return jsonify({'error': 'プレイリストURL/IDを入力してください。'}), 400
         
         # Import from app.py
-        from app import extract_playlist_id, fetch_youtube_playlist_info
+        from app import extract_playlist_id, fetch_youtube_playlist_info, get_youtube_playlist_videos_info_ytdlp, get_youtube_playlist_video_ids
         
         # Extract playlist ID
         playlist_id = extract_playlist_id(playlist_id_or_url)
@@ -1480,18 +1524,34 @@ def create_playlist():
             return jsonify({'error': 'プレイリスト情報を取得できませんでした。'}), 400
         
         oembed_title = playlist_info.get('title', f'Playlist ({playlist_id[:8]}...)')
-        thumbnail_html = playlist_info.get('thumbnail_html', '')
+        
+        # 動画一覧とサムネイルを取得
+        thumbnail_url = ''
+        video_count = 0
+        try:
+            video_ids = get_youtube_playlist_video_ids(playlist_id)
+            video_count = len(video_ids)
+            if video_ids:
+                first_video_id = video_ids[0]
+                # YouTubeの高画質サムネイルURLを直接生成
+                thumbnail_url = f'https://i.ytimg.com/vi/{first_video_id}/hqdefault.jpg'
+        except Exception as e:
+            print(f"[WARNING] Failed to get playlist thumbnail: {e}")
         
         final_title = title if title else oembed_title
         
         # Check existing
         existing = YouTubePlaylist.query.filter_by(playlist_id=playlist_id).first()
         
+        from datetime import datetime
+        
         if existing:
             existing.title = final_title
             existing.description = description or existing.description
-            if thumbnail_html:
-                existing.thumbnail_url = thumbnail_html
+            if thumbnail_url:
+                existing.thumbnail_url = thumbnail_url
+            existing.cached_video_count = video_count
+            existing.cache_updated_at = datetime.utcnow()
             db.session.commit()
             
             return jsonify({
@@ -1504,7 +1564,9 @@ def create_playlist():
                 playlist_id=playlist_id,
                 title=final_title,
                 description=description,
-                thumbnail_url=thumbnail_html
+                thumbnail_url=thumbnail_url,
+                cached_video_count=video_count,
+                cache_updated_at=datetime.utcnow()
             )
             db.session.add(new_playlist)
             db.session.commit()

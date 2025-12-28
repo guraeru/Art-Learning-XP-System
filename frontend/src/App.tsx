@@ -6,6 +6,7 @@ import Archive from './pages/Archive'
 import Resources from './pages/Resources'
 import BookReader from './pages/BookReader'
 import Statistics from './pages/Statistics'
+import YouTubePlaylists from './pages/YouTubePlaylists'
 import YouTubePlayer from './pages/YouTubePlayer'
 import Admin from './pages/Admin'
 
@@ -19,6 +20,7 @@ function App() {
         <Route path="resources" element={<Resources />} />
         <Route path="book/:bookId" element={<BookReader />} />
         <Route path="statistics" element={<Statistics />} />
+        <Route path="youtube" element={<YouTubePlaylists />} />
         <Route path="youtube/:playlistId" element={<YouTubePlayer />} />
         <Route path="admin" element={<Admin />} />
       </Route>

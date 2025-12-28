@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Sparkles,
+  Youtube,
 } from 'lucide-react'
 import { getStatus } from '../services/api'
 import type { UserStatus } from '../types'
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/mypage', icon: User, label: 'マイページ' },
   { to: '/archive', icon: Archive, label: 'アーカイブ' },
   { to: '/resources', icon: BookOpen, label: '本棚' },
+  { to: '/youtube', icon: Youtube, label: 'YouTube学習' },
   { to: '/statistics', icon: BarChart3, label: '統計' },
   { to: '/admin', icon: Settings, label: '管理' },
 ]

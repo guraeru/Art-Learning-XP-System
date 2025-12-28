@@ -86,6 +86,9 @@ class YouTubePlaylist(db.Model):
     description = db.Column(db.Text)
     thumbnail_url = db.Column(db.String(500))  # Playlist thumbnail or embed iframe HTML
     added_date = db.Column(db.DateTime, default=datetime.utcnow)
+    # キャッシュ用カラム
+    cached_video_count = db.Column(db.Integer, default=0)  # 動画数のキャッシュ
+    cache_updated_at = db.Column(db.DateTime)  # キャッシュ更新日時
 
     def __repr__(self):
         return f"<YouTubePlaylist {self.id}: {self.title}>"
