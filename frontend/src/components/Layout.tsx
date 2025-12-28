@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   Home,
@@ -26,10 +26,16 @@ const navItems = [
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [status, setStatus] = useState<UserStatus | null>(null)
+  const location = useLocation()
 
   useEffect(() => {
     getStatus().then((res) => setStatus(res.data))
   }, [])
+
+  // 本棚がアクティブかどうかを判定（/resourcesまたは/book/:bookIdの時）
+  const isResourcesActive = location.pathname === '/resources' || location.pathname.startsWith('/book/')
+  // YouTubeがアクティブかどうかを判定（/youtubeまたは/youtube/:playlistIdの時）
+  const isYoutubeActive = location.pathname === '/youtube' || location.pathname.startsWith('/youtube/')
 
   const progressPercent = status
     ? Math.min(
@@ -59,24 +65,27 @@ export default function Layout() {
       <aside className="hidden lg:flex fixed top-14 left-0 z-40 h-[calc(100%-3.5rem)] w-[72px] bg-transparent flex-col pt-3">
         <nav className="flex-1 overflow-y-auto">
           <ul className="space-y-1 px-1">
-            {navItems.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-blue-100 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`
-                  }
-                  title={item.label}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-[10px] mt-1 font-medium leading-tight text-center">{item.label.length > 5 ? item.label.slice(0, 4) + '..' : item.label}</span>
-                </NavLink>
-              </li>
-            ))}
+            {navItems.map((item) => {
+              const isActive = item.to === '/resources' ? isResourcesActive : item.to === '/youtube' ? isYoutubeActive : location.pathname === item.to
+              return (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    className={() =>
+                      `flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`
+                    }
+                    title={item.label}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span className="text-[10px] mt-1 font-medium leading-tight text-center">{item.label.length > 5 ? item.label.slice(0, 4) + '..' : item.label}</span>
+                  </NavLink>
+                </li>
+              )
+            })}
           </ul>
         </nav>
       </aside>
@@ -123,29 +132,32 @@ export default function Layout() {
           {/* Navigation */}
           <nav className="flex-1 p-4 overflow-y-auto">
             <ul className="space-y-2">
-              {navItems.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    onClick={() => {
-                      // モバイルの場合のみ閉じる
-                      if (window.innerWidth < 1024) {
-                        setSidebarOpen(false)
+              {navItems.map((item) => {
+                const isActive = item.to === '/resources' ? isResourcesActive : item.to === '/youtube' ? isYoutubeActive : location.pathname === item.to
+                return (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      onClick={() => {
+                        // モバイルの場合のみ閉じる
+                        if (window.innerWidth < 1024) {
+                          setSidebarOpen(false)
+                        }
+                      }}
+                      className={() =>
+                        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
+                          isActive
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-300'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`
                       }
-                    }}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
-                        isActive
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-300'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`
-                    }
-                  >
-                    <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.label}</span>
-                  </NavLink>
-                </li>
-              ))}
+                    >
+                      <item.icon className="w-5 h-5" />
+                      <span className="font-medium">{item.label}</span>
+                    </NavLink>
+                  </li>
+                )
+              })}
             </ul>
           </nav>
 
@@ -158,18 +170,16 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Overlay - Mobile only */}
+      {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-40 top-14 lg:hidden"
+          className="fixed inset-0 bg-black/30 z-40 top-14"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Main Content */}
-      <main className={`pt-14 min-h-screen transition-all duration-300 ${
-        sidebarOpen ? 'lg:pl-72' : 'lg:pl-[72px]'
-      }`}>
+      <main className="pt-14 min-h-screen lg:pl-[72px]">
         <div className="p-4 lg:p-6">
           <Outlet />
         </div>
