@@ -571,7 +571,7 @@ export default function Admin() {
                       : 'border-gray-200 hover:border-primary-400'
                   }`}
                 >
-                  <span className="text-gray-500 text-sm truncate">{bookPdf ? bookPdf.name : `📄 PDFファイル ${!editingBook ? '*' : '（任意）'}`}</span>
+                  <span className="text-gray-500 text-sm truncate">{bookPdf ? bookPdf.name : `PDFファイル ${!editingBook ? '*' : '（任意）'}`}</span>
                   <input
                     type="file"
                     accept=".pdf"
@@ -589,7 +589,7 @@ export default function Admin() {
                       : 'border-gray-200 hover:border-primary-400'
                   }`}
                 >
-                  <span className="text-gray-500 text-sm truncate">{bookCover ? bookCover.name : '🖼️ 表紙画像（任意）'}</span>
+                  <span className="text-gray-500 text-sm truncate">{bookCover ? bookCover.name : '表紙画像（任意）'}</span>
                   <input
                     type="file"
                     accept="image/*"
