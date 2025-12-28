@@ -498,7 +498,7 @@ export default function Admin() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
-          <Settings className="w-6 h-6 text-white" />
+          <Settings className="w-6 h-6 text-black" />
         </div>
         <div>
           <h1 className="text-3xl font-bold text-gray-800">管理コンソール</h1>

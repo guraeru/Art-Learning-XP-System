@@ -88,7 +88,7 @@ export default function Statistics() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
-            <BarChart3 className="w-6 h-6 text-white" />
+            <BarChart3 className="w-6 h-6 text-black" />
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">統計・分析</h1>
