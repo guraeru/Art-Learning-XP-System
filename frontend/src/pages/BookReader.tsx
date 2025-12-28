@@ -183,7 +183,6 @@ export default function BookReader() {
   const [loading, setLoading] = useState(true)
   const [pageImage, setPageImage] = useState<string | null>(null)
   const [allPages, setAllPages] = useState<{ page_num: number; data: string }[]>([])
-  const [loadedPageCount, setLoadedPageCount] = useState(0)
 
   // Fetch book info
   useEffect(() => {
@@ -251,7 +250,6 @@ export default function BookReader() {
   // Initialize page loading for all-pages view
   useEffect(() => {
     if (viewMode === 'all' && totalPages > 0 && bookId) {
-      setLoadedPageCount(0)
       setAllPages([])
 
       // Create page manager
@@ -271,8 +269,8 @@ export default function BookReader() {
             return newPages
           })
         },
-        (loaded) => {
-          setLoadedPageCount(loaded)
+        () => {
+          // Page loaded callback
         }
       )
 
@@ -592,17 +590,7 @@ export default function BookReader() {
 
           <h2 className="text-lg font-bold text-gray-900">{book.title}</h2>
 
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary-500 transition-all duration-300"
-                style={{ width: `${(loadedPageCount / totalPages) * 100}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-500 w-16 text-right">
-              {loadedPageCount}/{totalPages}
-            </span>
-          </div>
+          <div className="w-24" />
         </div>
 
         {/* Pages List - All pages with placeholders */}
