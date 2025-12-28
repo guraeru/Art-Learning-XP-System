@@ -69,6 +69,9 @@ export default function Admin() {
   const [dragOverMaterial, setDragOverMaterial] = useState(false)
   const [loadingPlaylistId, setLoadingPlaylistId] = useState<number | null>(null)
 
+  const [dragOverPdf, setDragOverPdf] = useState(false)
+  const [dragOverCover, setDragOverCover] = useState(false)
+
   const [newUsername, setNewUsername] = useState('')
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [editingUsername, setEditingUsername] = useState(false)
@@ -92,6 +95,13 @@ export default function Admin() {
   // Book handlers
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
+    if (!bookForm.title.trim()) {
+      setToast({ message: 'タイトルを入力してください', type: 'error' })
+      return
+    }
+    
     if (!editingBook && !bookPdf) {
       setToast({ message: 'PDFファイルを選択してください', type: 'error' })
       return
@@ -155,6 +165,62 @@ export default function Admin() {
       setToast({ message: 'エラーが発生しました', type: 'error' })
     }
   }
+
+  // Drag & Drop handlers
+  const handleDragOverPdf = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverPdf(true)
+  }
+
+  const handleDragLeavePdf = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverPdf(false)
+  }
+
+  const handleDropPdf = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverPdf(false)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        setBookPdf(file)
+      } else {
+        setToast({ message: 'PDFファイルをドラッグしてください', type: 'error' })
+      }
+    }
+  }
+
+  const handleDragOverCover = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverCover(true)
+  }
+
+  const handleDragLeaveCover = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverCover(false)
+  }
+
+  const handleDropCover = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverCover(false)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      if (file.type.startsWith('image/')) {
+        setBookCover(file)
+      } else {
+        setToast({ message: '画像ファイルをドラッグしてください', type: 'error' })
+      }
+    }
+  }
+
 
   // Link handlers
   const handleAddLink = async (e: React.FormEvent) => {
@@ -495,18 +561,35 @@ export default function Admin() {
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500"
               />
               <div className="grid md:grid-cols-2 gap-4">
-                <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-primary-400">
-                  <span className="text-gray-500">{bookPdf ? bookPdf.name : `PDFファイル ${!editingBook ? '*' : '（任意）'}`}</span>
+                <label
+                  onDragOver={handleDragOverPdf}
+                  onDragLeave={handleDragLeavePdf}
+                  onDrop={handleDropPdf}
+                  className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                    dragOverPdf
+                      ? 'border-primary-400 bg-primary-50'
+                      : 'border-gray-200 hover:border-primary-400'
+                  }`}
+                >
+                  <span className="text-gray-500 text-sm truncate">{bookPdf ? bookPdf.name : `📄 PDFファイル ${!editingBook ? '*' : '（任意）'}`}</span>
                   <input
                     type="file"
                     accept=".pdf"
                     onChange={(e) => setBookPdf(e.target.files?.[0] || null)}
                     className="hidden"
-                    required={!editingBook}
                   />
                 </label>
-                <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-primary-400">
-                  <span className="text-gray-500">{bookCover ? bookCover.name : '表紙画像（任意）'}</span>
+                <label
+                  onDragOver={handleDragOverCover}
+                  onDragLeave={handleDragLeaveCover}
+                  onDrop={handleDropCover}
+                  className={`flex items-center gap-3 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                    dragOverCover
+                      ? 'border-primary-400 bg-primary-50'
+                      : 'border-gray-200 hover:border-primary-400'
+                  }`}
+                >
+                  <span className="text-gray-500 text-sm truncate">{bookCover ? bookCover.name : '🖼️ 表紙画像（任意）'}</span>
                   <input
                     type="file"
                     accept="image/*"

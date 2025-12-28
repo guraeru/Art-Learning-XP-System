@@ -29,6 +29,40 @@ def allowed_material_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_MATERIAL_EXTENSIONS
 
 
+def extract_pdf_first_page(pdf_filepath):
+    """Extract the first page of PDF as an image.
+    
+    Args:
+        pdf_filepath: Full path to the PDF file
+    
+    Returns:
+        Tuple of (image_filename, image_path) or (None, None) if extraction fails
+    """
+    try:
+        # Open PDF
+        pdf_doc = fitz.open(pdf_filepath)
+        if pdf_doc.page_count < 1:
+            return None, None
+        
+        # Get first page and render as image (300 dpi)
+        first_page = pdf_doc[0]
+        pix = first_page.get_pixmap(matrix=fitz.Matrix(1, 1))
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        image_filename = secure_filename(f"{timestamp}_pdf_cover.png")
+        
+        # Save image
+        image_filepath = os.path.join(UPLOAD_FOLDER, image_filename)
+        pix.save(image_filepath)
+        
+        pdf_doc.close()
+        return image_filename, image_filepath
+    except Exception as e:
+        print(f"Error extracting PDF first page: {str(e)}")
+        return None, None
+
+
 def normalize_file_path(file_path):
     """Normalize file path by extracting filename only.
     
@@ -420,6 +454,12 @@ def get_book(id):
                 pdf_filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], pdf_filename)
                 pdf_file.save(pdf_filepath)
                 book.pdf_file_path = pdf_filename  # Store only filename
+                # Auto-extract cover from new PDF if no cover image is provided
+                cover_image = request.files.get('cover_image')
+                if not cover_image or not cover_image.filename:
+                    extracted_filename, _ = extract_pdf_first_page(pdf_filepath)
+                    if extracted_filename:
+                        book.cover_image_path = extracted_filename
             
             # Update cover if provided
             cover_image = request.files.get('cover_image')
@@ -464,13 +504,19 @@ def create_book():
         pdf_file.save(pdf_filepath)
         pdf_path = pdf_filename  # Store only filename
         
-        # Save cover image
+        # Save cover image or extract from PDF
         cover_path = None
-        if cover_image and allowed_file(cover_image.filename):
+        if cover_image and cover_image.filename and allowed_file(cover_image.filename):
+            # Use provided cover image
             cover_filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_cover_{cover_image.filename}")
             cover_filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], cover_filename)
             cover_image.save(cover_filepath)
             cover_path = cover_filename  # Store only filename
+        else:
+            # Extract first page from PDF as cover
+            extracted_filename, _ = extract_pdf_first_page(pdf_filepath)
+            if extracted_filename:
+                cover_path = extracted_filename
         
         book = Book(
             title=title,
