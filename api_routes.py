@@ -870,8 +870,10 @@ def get_playlist(id):
     if not playlist:
         return jsonify({'error': 'Playlist not found'}), 404
     
-    # Get materials (fast, required for admin)
-    materials = PlaylistMaterial.query.filter_by(playlist_id=id).all()
+    # Get materials (fast, required for admin) - sorted alphabetically by display_name
+    materials = PlaylistMaterial.query.filter_by(playlist_id=id).order_by(
+        PlaylistMaterial.display_name.asc()
+    ).all()
     
     # Check if we need video details (from query param for optimization)
     include_videos = request.args.get('include_videos', 'false').lower() == 'true'
@@ -1619,7 +1621,7 @@ def get_playlist_materials(playlist_id):
     from flask import url_for
     
     materials = PlaylistMaterial.query.filter_by(playlist_id=playlist_id).order_by(
-        PlaylistMaterial.uploaded_at.desc()
+        PlaylistMaterial.display_name.asc()
     ).all()
     
     return jsonify([{
