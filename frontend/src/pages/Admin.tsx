@@ -995,7 +995,7 @@ export default function Admin() {
                                 className="w-4 h-4 rounded cursor-pointer"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="font-medium text-gray-800 truncate text-sm">{material.file_name}</p>
+                                <p className="font-medium text-gray-800 truncate text-sm">{material.display_name || material.original_filename}</p>
                                 <p className="text-xs text-gray-600">
                                   {new Date(material.uploaded_at || '').toLocaleDateString('ja-JP')}
                                 </p>

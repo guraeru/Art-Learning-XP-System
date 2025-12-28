@@ -77,9 +77,11 @@ export interface PlaylistDetail extends YouTubePlaylist {
 
 export interface PlaylistMaterial {
   id: number
-  file_name: string
-  file_path: string
+  display_name: string
+  original_filename: string
+  file_size: number
   uploaded_at: string | null
+  download_url: string
 }
 
 // Pixiv Topics

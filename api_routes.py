@@ -914,9 +914,11 @@ def get_playlist(id):
         'videos': videos,
         'materials': [{
             'id': m.id,
-            'file_name': m.original_filename,
-            'file_path': m.stored_filename,
-            'uploaded_at': m.uploaded_at.isoformat() if m.uploaded_at else None
+            'display_name': m.display_name or m.original_filename,
+            'original_filename': m.original_filename,
+            'file_size': m.file_size or 0,
+            'uploaded_at': m.uploaded_at.isoformat() if m.uploaded_at else None,
+            'download_url': f'/playlist_materials/{m.id}/download'
         } for m in materials],
         'total_completed': total_completed,
         'progress_rate': progress_rate
@@ -1711,3 +1713,7 @@ def delete_material(material_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+# Note: This download endpoint is registered in app.py at /playlist_materials/<id>/download
+# because it needs to be outside the /api prefix

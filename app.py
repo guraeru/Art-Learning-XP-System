@@ -563,6 +563,21 @@ def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
+@app.route('/playlist_materials/<int:material_id>/download')
+def download_playlist_material(material_id):
+    """Download a playlist material file."""
+    material = PlaylistMaterial.query.get(material_id)
+    if not material:
+        return jsonify({'error': '講義資料が見つかりません。'}), 404
+    
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        material.stored_filename,
+        as_attachment=True,
+        download_name=material.original_filename
+    )
+
+
 # --- SPA Routes ---
 
 @app.route('/', defaults={'path': ''})
