@@ -170,6 +170,11 @@ class PageLoadManager {
   getLoadedCount(): number {
     return this.loaded.size
   }
+
+  // Set preloaded page data (to avoid duplicate fetching)
+  setPreloaded(pageNum: number, data: string) {
+    this.loaded.set(pageNum, data)
+  }
 }
 
 export default function BookReader() {
@@ -183,8 +188,9 @@ export default function BookReader() {
   const [loading, setLoading] = useState(true)
   const [pageImage, setPageImage] = useState<string | null>(null)
   const [allPages, setAllPages] = useState<{ page_num: number; data: string }[]>([])
+  const [preloadedFirstPage, setPreloadedFirstPage] = useState<string | null>(null)
 
-  // Fetch book info
+  // Fetch book info and preload first page immediately
   useEffect(() => {
     const fetchBook = async () => {
       try {
@@ -199,6 +205,20 @@ export default function BookReader() {
         const pagesData = await pagesRes.json()
         setTotalPages(pagesData.total_pages)
         setLoading(false)
+        
+        // Preload first page immediately for instant "all pages" view
+        if (pagesData.total_pages > 0) {
+          fetch(`/api/books/${bookId}/page/0?zoom=2`)
+            .then(res => res.blob())
+            .then(blob => {
+              const reader = new FileReader()
+              reader.onloadend = () => {
+                setPreloadedFirstPage(reader.result as string)
+              }
+              reader.readAsDataURL(blob)
+            })
+            .catch(console.error)
+        }
       } catch (error) {
         console.error('Failed to fetch book:', error)
         navigate('/resources')
@@ -250,7 +270,12 @@ export default function BookReader() {
   // Initialize page loading for all-pages view
   useEffect(() => {
     if (viewMode === 'all' && totalPages > 0 && bookId) {
-      setAllPages([])
+      // Initialize with preloaded first page if available
+      if (preloadedFirstPage) {
+        setAllPages([{ page_num: 0, data: preloadedFirstPage }])
+      } else {
+        setAllPages([])
+      }
 
       // Create page manager
       const manager = new PageLoadManager(
@@ -276,11 +301,17 @@ export default function BookReader() {
 
       loadManagerRef.current = manager
 
-      // Initial load: first 3 pages with highest priority, then prefetch next 10
-      for (let i = 0; i < Math.min(3, totalPages); i++) {
+      // If first page is already preloaded, register it with the manager
+      if (preloadedFirstPage) {
+        manager.setPreloaded(0, preloadedFirstPage)
+      }
+      
+      // Initial load: first pages with highest priority (skip page 0 if preloaded)
+      const startPage = preloadedFirstPage ? 1 : 0
+      for (let i = startPage; i < Math.min(startPage + 3, totalPages); i++) {
         manager.requestPage(i, 0)
       }
-      manager.prefetchRange(3, Math.min(15, totalPages - 1))
+      manager.prefetchRange(startPage + 3, Math.min(15, totalPages - 1))
       
       // Background prefetch all remaining pages
       setTimeout(() => {
@@ -292,7 +323,7 @@ export default function BookReader() {
         loadManagerRef.current = null
       }
     }
-  }, [viewMode, bookId, totalPages])
+  }, [viewMode, bookId, totalPages, preloadedFirstPage])
 
   // Scroll handler for dynamic priority adjustment
   const handleScroll = useCallback(() => {
