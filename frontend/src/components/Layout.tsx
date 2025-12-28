@@ -61,8 +61,8 @@ export default function Layout() {
         </div>
       </div>
 
-      {/* Mini Sidebar for PC (icons only) */}
-      <aside className="hidden lg:flex fixed top-14 left-0 z-40 h-[calc(100%-3.5rem)] w-[72px] bg-transparent flex-col pt-3">
+      {/* Mini Sidebar for PC (icons only) - サイドバーが閉じている時のみ表示 */}
+      <aside className={`hidden lg:flex fixed top-14 left-0 z-40 h-[calc(100%-3.5rem)] w-[72px] bg-transparent flex-col pt-3 transition-opacity duration-300 ${sidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <nav className="flex-1 overflow-y-auto">
           <ul className="space-y-1 px-1">
             {navItems.map((item) => {
@@ -90,10 +90,10 @@ export default function Layout() {
         </nav>
       </aside>
 
-      {/* Full Sidebar (expandable) */}
+      {/* Full Sidebar (expandable) - PC版では固定位置、モバイルではスライドイン */}
       <aside
-        className={`fixed top-14 left-0 z-50 h-[calc(100%-3.5rem)] w-72 bg-white shadow-xl transform transition-transform duration-300 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-14 left-0 z-50 h-[calc(100%-3.5rem)] w-72 bg-white shadow-xl transform transition-all duration-300 lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0 lg:opacity-100 lg:visible' : '-translate-x-full lg:opacity-0 lg:invisible lg:pointer-events-none'
         }`}
       >
         <div className="flex flex-col h-full">
@@ -170,16 +170,16 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Overlay */}
+      {/* Overlay - モバイルのみ表示 */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-40 top-14"
+          className="fixed inset-0 bg-black/30 z-40 top-14 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main Content */}
-      <main className="pt-14 min-h-screen lg:pl-[72px]">
+      {/* Main Content - PC版でサイドバーが開いている時は左マージンを広げる */}
+      <main className={`pt-14 min-h-screen transition-all duration-300 ${sidebarOpen ? 'lg:ml-72' : 'lg:ml-[72px]'}`}>
         <div className="p-4 lg:p-6">
           <Outlet />
         </div>
