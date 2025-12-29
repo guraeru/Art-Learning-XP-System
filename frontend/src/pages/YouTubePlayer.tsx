@@ -252,11 +252,11 @@ export default function YouTubePlayer() {
   const currentVideo = playlist?.videos?.[currentIndex]
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden bg-gray-50">
+    <div className="flex flex-col bg-gray-50">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Header */}
-      <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
+      {/* Header - Fixed */}
+      <div className="sticky top-0 z-10 flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 bg-white border-b border-gray-200">
         <Link
           to="/youtube"
           className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
@@ -282,17 +282,17 @@ export default function YouTubePlayer() {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
+      {/* Main Content Area - Scrolls with page */}
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
         {/* Video Player Section */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="lg:flex-1 lg:flex lg:flex-col lg:min-w-0 w-full flex flex-col min-w-0">
           {/* Player Container */}
-          <div className="bg-black rounded-2xl overflow-hidden flex-shrink-0" style={{ aspectRatio: '16 / 9' }} ref={containerRef}>
+          <div className="bg-black rounded-2xl overflow-hidden" style={{ aspectRatio: '16 / 9' }} ref={containerRef}>
             <div id="youtube-player" className="w-full h-full" />
           </div>
 
           {/* Controls */}
-          <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm mt-3 sm:mt-4 flex-shrink-0">
+          <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm mt-3 sm:mt-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 <button
@@ -323,10 +323,10 @@ export default function YouTubePlayer() {
           </div>
         </div>
 
-        {/* Sidebar - Fixed Width */}
-        <div className="hidden lg:flex w-80 flex-col bg-white rounded-2xl shadow-sm overflow-hidden flex-shrink-0">
+        {/* Sidebar - Responsive */}
+        <div className="w-full lg:w-80 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden h-96 lg:h-auto lg:max-h-[calc(100vh-200px)]">
           {/* Tab Header */}
-          <div className="flex border-b flex-shrink-0">
+          <div className="flex border-b border-gray-200 flex-shrink-0">
             <button
               onClick={() => setActiveTab('videos')}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative ${
@@ -368,9 +368,9 @@ export default function YouTubePlayer() {
           </div>
 
           {/* Tab Content - Scrollable */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
             {activeTab === 'videos' ? (
-              <div className="h-full overflow-y-auto overscroll-contain" ref={playlistContainerRef}>
+              <div className="h-full" ref={playlistContainerRef}>
                 {playlist?.videos?.map((video, index) => (
                   <div
                     key={video.id}
@@ -418,7 +418,7 @@ export default function YouTubePlayer() {
                 ))}
               </div>
             ) : (
-              <div className="h-full overflow-y-auto overscroll-contain p-3">
+              <div className="h-full overflow-y-auto p-3">
                 {playlist?.materials && playlist.materials.length > 0 ? (
                   <div className="space-y-2">
                     {playlist.materials.map((material) => (
