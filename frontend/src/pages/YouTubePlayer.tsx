@@ -147,10 +147,12 @@ export default function YouTubePlayer() {
       }
 
       const currentVideo = playlist.videos?.[currentIndex]
+      // ユーザーが開始（最初のビデオは手動再生）、その後の動画は自動再生
+      const shouldAutoplay = currentIndex > 0 ? 1 : 0
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId: currentVideo?.id,
         playerVars: {
-          autoplay: 0,
+          autoplay: shouldAutoplay,
           modestbranding: 1,
           rel: 0,
           start: Math.floor(currentVideo?.total_watch_time || 0), // Start from last watch position
