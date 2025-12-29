@@ -149,14 +149,24 @@ export default function YouTubePlayer() {
       const currentVideo = playlist.videos?.[currentIndex]
       // ユーザーが開始（最初のビデオは手動再生）、その後の動画は自動再生
       const shouldAutoplay = currentIndex > 0 ? 1 : 0
+      
+      // 完了済みの動画は最初から再生、未完了の動画は前回の位置から再生
+      const startTime = currentVideo?.completed ? undefined : Math.floor(currentVideo?.total_watch_time || 0)
+      
+      const playerVars: YTPlayerVars = {
+        autoplay: shouldAutoplay,
+        modestbranding: 1,
+        rel: 0,
+      }
+      
+      // startが0の場合や定義されていない場合は、playerVarsに含めない
+      if (startTime !== undefined && startTime > 0) {
+        (playerVars as any).start = startTime
+      }
+      
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId: currentVideo?.id,
-        playerVars: {
-          autoplay: shouldAutoplay,
-          modestbranding: 1,
-          rel: 0,
-          start: Math.floor(currentVideo?.total_watch_time || 0), // Start from last watch position
-        },
+        playerVars: playerVars,
         events: {
           onStateChange: handleStateChange,
         },
