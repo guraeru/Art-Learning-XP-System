@@ -252,11 +252,11 @@ export default function YouTubePlayer() {
   const currentVideo = playlist?.videos?.[currentIndex]
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden bg-gray-50">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Header */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
         <Link
           to="/youtube"
           className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
@@ -282,15 +282,17 @@ export default function YouTubePlayer() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Video Player */}
-        <div className="lg:col-span-2 space-y-3 sm:space-y-4">
-          <div className="bg-black rounded-2xl overflow-hidden aspect-video" ref={containerRef}>
+      {/* Main Content Area */}
+      <div className="flex flex-1 overflow-hidden gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
+        {/* Video Player Section */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Player Container */}
+          <div className="bg-black rounded-2xl overflow-hidden flex-shrink-0" style={{ aspectRatio: '16 / 9' }} ref={containerRef}>
             <div id="youtube-player" className="w-full h-full" />
           </div>
 
           {/* Controls */}
-          <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm">
+          <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm mt-3 sm:mt-4 flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
                 <button
@@ -321,10 +323,10 @@ export default function YouTubePlayer() {
           </div>
         </div>
 
-        {/* Playlist & Materials Tabs */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        {/* Sidebar - Fixed Width */}
+        <div className="hidden lg:flex w-80 flex-col bg-white rounded-2xl shadow-sm overflow-hidden flex-shrink-0">
           {/* Tab Header */}
-          <div className="flex border-b">
+          <div className="flex border-b flex-shrink-0">
             <button
               onClick={() => setActiveTab('videos')}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative ${
@@ -365,89 +367,91 @@ export default function YouTubePlayer() {
             </button>
           </div>
 
-          {/* Tab Content */}
-          {activeTab === 'videos' ? (
-            <div className="max-h-[50vh] sm:max-h-[600px] overflow-y-auto overscroll-contain" ref={playlistContainerRef}>
-              {playlist?.videos?.map((video, index) => (
-                <div
-                  key={video.id}
-                  data-video-index={index}
-                  onClick={() => playVideo(index)}
-                  className={`flex items-center gap-3 p-3 cursor-pointer transition-colors ${
-                    index === currentIndex
-                      ? 'bg-primary-50 border-l-4 border-primary-500'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  {/* Thumbnail */}
-                  <div className="relative w-24 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      className="w-full h-full object-cover"
-                    />
-                    {index === currentIndex && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <Play className="w-6 h-6 text-white" fill="white" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 line-clamp-2">
-                      {video.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {video.completed ? (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Circle className="w-4 h-4 text-gray-300" />
+          {/* Tab Content - Scrollable */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'videos' ? (
+              <div className="h-full overflow-y-auto overscroll-contain" ref={playlistContainerRef}>
+                {playlist?.videos?.map((video, index) => (
+                  <div
+                    key={video.id}
+                    data-video-index={index}
+                    onClick={() => playVideo(index)}
+                    className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border-l-4 ${
+                      index === currentIndex
+                        ? 'bg-primary-50 border-primary-500'
+                        : 'hover:bg-gray-50 border-transparent'
+                    }`}
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative w-24 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                      <img
+                        src={video.thumbnail}
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {index === currentIndex && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Play className="w-6 h-6 text-white" fill="white" />
+                        </div>
                       )}
-                      <span className="text-xs text-gray-500">
-                        {Math.floor(video.duration / 60)}:{(video.duration % 60)
-                          .toString()
-                          .padStart(2, '0')}
-                      </span>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 line-clamp-2">
+                        {video.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {video.completed ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-gray-300" />
+                        )}
+                        <span className="text-xs text-gray-500">
+                          {Math.floor(video.duration / 60)}:{(video.duration % 60)
+                            .toString()
+                            .padStart(2, '0')}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="max-h-[600px] overflow-auto p-3">
-              {playlist?.materials && playlist.materials.length > 0 ? (
-                <div className="space-y-2">
-                  {playlist.materials.map((material) => (
-                    <a
-                      key={material.id}
-                      href={material.download_url}
-                      download
-                      className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-all group"
-                    >
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-primary-100 transition-colors flex-shrink-0">
-                        <File className="w-5 h-5 text-gray-500 group-hover:text-primary-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate group-hover:text-primary-600">
-                          {material.display_name || material.original_filename}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatFileSize(material.file_size)}
-                        </p>
-                      </div>
-                      <Download className="w-5 h-5 text-gray-400 group-hover:text-primary-600 transition-colors flex-shrink-0" />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                  <FileText className="w-12 h-12 mb-3 opacity-50" />
-                  <p className="text-sm">講義資料はありません</p>
-                </div>
-              )}
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="h-full overflow-y-auto overscroll-contain p-3">
+                {playlist?.materials && playlist.materials.length > 0 ? (
+                  <div className="space-y-2">
+                    {playlist.materials.map((material) => (
+                      <a
+                        key={material.id}
+                        href={material.download_url}
+                        download
+                        className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-all group"
+                      >
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-primary-100 transition-colors flex-shrink-0">
+                          <File className="w-5 h-5 text-gray-500 group-hover:text-primary-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate group-hover:text-primary-600">
+                            {material.display_name || material.original_filename}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatFileSize(material.file_size)}
+                          </p>
+                        </div>
+                        <Download className="w-5 h-5 text-gray-400 group-hover:text-primary-600 transition-colors flex-shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                    <FileText className="w-12 h-12 mb-3 opacity-50" />
+                    <p className="text-sm">講義資料はありません</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
