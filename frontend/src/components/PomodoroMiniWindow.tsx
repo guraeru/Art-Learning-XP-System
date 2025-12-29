@@ -82,6 +82,42 @@ function PomodoroMiniWindow() {
   const dragRef = useRef<DragState | null>(null)
   const windowRef = useRef<HTMLDivElement>(null)
   const throttleRef = useRef<number | null>(null)
+  const [windowSize, setWindowSize] = useState<{ width: number; height: number }>({ width: 200, height: 100 })
+
+  // === Measure window size and adjust position if needed ===
+  useEffect(() => {
+    if (!windowRef.current) return
+    
+    const updateWindowSize = () => {
+      const el = windowRef.current
+      if (!el) return
+      
+      const w = el.offsetWidth
+      const h = el.offsetHeight
+      setWindowSize({ width: w, height: h })
+      
+      // Position が画面外にはみ出していないか確認
+      setPosition(prev => {
+        const maxX = Math.max(0, window.innerWidth - w - 8)
+        const maxY = Math.max(60, window.innerHeight - h - 8)
+        const newX = Math.min(prev.x, maxX)
+        const newY = Math.min(prev.y, maxY)
+        
+        return { x: newX, y: newY }
+      })
+    }
+    
+    // ResizeObserverでウィンドウサイズの変更を監視
+    const resizeObserver = new ResizeObserver(updateWindowSize)
+    resizeObserver.observe(windowRef.current)
+    
+    // 初回読み込み時に実行
+    updateWindowSize()
+    
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [isMinimized])
 
   // === Load Position from Storage ===
   useEffect(() => {
@@ -134,8 +170,8 @@ function PomodoroMiniWindow() {
     const deltaY = e.clientY - dragRef.current.startY
 
     const el = windowRef.current
-    const elW = el?.offsetWidth ?? 200
-    const elH = el?.offsetHeight ?? 100
+    const elW = el?.offsetWidth ?? windowSize.width
+    const elH = el?.offsetHeight ?? windowSize.height
 
     const newX = Math.max(0, Math.min(window.innerWidth - elW, dragRef.current.initialX + deltaX))
     const newY = Math.max(60, Math.min(window.innerHeight - elH, dragRef.current.initialY + deltaY))
@@ -144,7 +180,7 @@ function PomodoroMiniWindow() {
     dragRef.current.lastY = newY
 
     setPosition({ x: newX, y: newY })
-  }, [isDragging])
+  }, [isDragging, windowSize])
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
     const element = windowRef.current
@@ -179,7 +215,7 @@ function PomodoroMiniWindow() {
     }
     
     dragRef.current = null
-  }, [])
+  }, [windowSize])
 
   // === Add/Remove Global Listeners ===
   useEffect(() => {
@@ -259,6 +295,36 @@ function PomodoroMiniWindow() {
     navigate('/pomodoro')
   }, [navigate])
 
+  // === Adjust position when minimizing/maximizing ===
+  const handleToggleMinimize = useCallback(() => {
+    setIsMinimized(prev => {
+      const newIsMinimized = !prev
+      // タイミングの問題を避けるため、次のレンダリング後にサイズを確認して位置を調整
+      setTimeout(() => {
+        const el = windowRef.current
+        if (el) {
+          const w = el.offsetWidth
+          const h = el.offsetHeight
+          setPosition(p => {
+            // 最小化する場合は角にスナップ（アニメーションなし）
+            if (newIsMinimized) {
+              const snappedPos = getSnappedPosition(p.x, p.y, w, h)
+              return snappedPos
+            } else {
+              // 展開する場合は画面内に収まるように調整
+              const maxX = Math.max(0, window.innerWidth - w - 8)
+              const maxY = Math.max(60, window.innerHeight - h - 8)
+              const newX = Math.min(p.x, maxX)
+              const newY = Math.min(p.y, maxY)
+              return { x: newX, y: newY }
+            }
+          })
+        }
+      }, 0)
+      return newIsMinimized
+    })
+  }, [])
+
   // === Check if on Pomodoro Page - AFTER all hooks ===
   const isOnPomodoroPage = location.pathname === '/pomodoro'
   if (isOnPomodoroPage || !showMiniWindow) {
@@ -292,7 +358,7 @@ function PomodoroMiniWindow() {
               {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </button>
             <button
-              onClick={() => setIsMinimized(false)}
+              onClick={handleToggleMinimize}
               className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
               title="展開"
             >
@@ -325,7 +391,7 @@ function PomodoroMiniWindow() {
         </div>
         <div className="flex items-center gap-1" data-no-drag>
           <button
-            onClick={() => setIsMinimized(true)}
+            onClick={handleToggleMinimize}
             className="p-1 rounded hover:bg-white/20 transition-colors"
             title="最小化"
           >
