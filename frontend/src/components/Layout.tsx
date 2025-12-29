@@ -9,6 +9,7 @@ import {
   Settings,
   Menu,
   Youtube,
+  Timer,
 } from 'lucide-react'
 import { getStatus } from '../services/api'
 import type { UserStatus } from '../types'
@@ -16,6 +17,7 @@ import type { UserStatus } from '../types'
 const navItems = [
   { to: '/', icon: Home, label: 'ダッシュボード' },
   { to: '/mypage', icon: User, label: 'マイページ' },
+  { to: '/pomodoro', icon: Timer, label: 'ポモドーロ' },
   { to: '/archive', icon: Archive, label: 'アーカイブ' },
   { to: '/resources', icon: BookOpen, label: '本棚' },
   { to: '/youtube', icon: Youtube, label: 'YouTube学習' },

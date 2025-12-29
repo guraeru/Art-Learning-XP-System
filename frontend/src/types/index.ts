@@ -104,6 +104,8 @@ export interface ApiResponse<T = unknown> {
   message?: string
   error?: string
   data?: T
+  xp_gained?: number
+  record_id?: number
 }
 
 export interface VideoCompleteResponse {

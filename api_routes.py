@@ -174,45 +174,81 @@ def get_record(id):
 
 @api_bp.route('/records/time', methods=['POST'])
 def log_time():
-    """Log time learning record"""
+    """Log time learning record
+    
+    Request Body:
+        - activity_type (str): Type of activity (e.g. "イラスト制作")
+        - duration (int): Duration in minutes (must be positive)
+        - description (str, optional): Description of the learning session
+    
+    Returns:
+        - success (bool): Whether the operation was successful
+        - message (str): Human-readable message
+        - xp_gained (int): XP earned
+        - record_id (int): ID of the created record
+    """
     try:
         data = request.json or {}
-        activity_type = data.get('activity_type')
-        duration_minutes = int(data.get('duration', 0))
-        description = data.get('description', '')
+        activity_type = data.get('activity_type', '').strip()
+        duration_minutes = data.get('duration')
+        description = data.get('description', '').strip()
         
-        if duration_minutes <= 0:
-            return jsonify({'error': '時間は正の整数である必要があります。'}), 400
+        # Validate activity_type
+        if not activity_type:
+            return jsonify({'error': '活動タイプは必須です。'}), 400
         
+        # Validate and convert duration
+        try:
+            duration_minutes = int(duration_minutes)
+        except (TypeError, ValueError):
+            return jsonify({'error': '時間は整数である必要があります。'}), 400
+        
+        if duration_minutes <= 0 or duration_minutes > 1440:  # Max 24 hours
+            return jsonify({'error': '時間は1〜1440分の間である必要があります。'}), 400
+        
+        # Calculate XP
         gained_xp = XPCalculator.calculate_time_xp(activity_type, duration_minutes)
-        
         if gained_xp <= 0:
-            return jsonify({'error': '無効な活動タイプです。'}), 400
+            return jsonify({'error': f'無効な活動タイプです: {activity_type}'}), 400
         
+        # Validate description length
+        description = description[:255] if description else ''
+        
+        # Create record
         new_record = Record(
             type='時間学習',
             subtype=activity_type,
             duration_minutes=duration_minutes,
-            description=description,
+            description=description or f'{activity_type} セッション',
             xp_gained=gained_xp,
             date=datetime.now()
         )
-        db.session.add(new_record)
         
+        # Update user status
         user_status = UserStatus.query.first()
+        if not user_status:
+            user_status = UserStatus(username='新規ユーザー', total_xp=0)
+            db.session.add(user_status)
+        
         user_status.total_xp += gained_xp
+        db.session.add(new_record)
         db.session.commit()
         
         return jsonify({
             'success': True,
             'message': f'{activity_type} の記録に成功しました! +{gained_xp:,} XPを獲得しました。',
             'xp_gained': gained_xp,
-            'record_id': new_record.id
-        })
+            'record_id': new_record.id,
+            'total_xp': user_status.total_xp
+        }), 201
     
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'error': f'入力エラー: {str(e)}'}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f'Error in log_time: {str(e)}')
+        return jsonify({'error': '予期しないエラーが発生しました。'}), 500
 
 
 @api_bp.route('/records/acquisition', methods=['POST'])
