@@ -22,6 +22,8 @@ import Toast from '../components/Toast'
 interface YTPlayer {
   destroy: () => void
   getCurrentTime: () => number
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void
+  playVideo: () => void
 }
 
 interface YTPlayerEvent {
@@ -69,9 +71,12 @@ export default function YouTubePlayer() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [playerReady, setPlayerReady] = useState(false)
   const [activeTab, setActiveTab] = useState<'videos' | 'materials'>('videos')
+  const [resumeDialog, setResumeDialog] = useState<{ show: boolean; startTime: number | null }>({ show: false, startTime: null })
+  const [userInitiatedPlayback, setUserInitiatedPlayback] = useState(false)
   const playerRef = useRef<YTPlayer | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const playlistContainerRef = useRef<HTMLDivElement>(null)
+  const pendingStartTimeRef = useRef<number | null>(null)
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -148,35 +153,83 @@ export default function YouTubePlayer() {
 
       const currentVideo = playlist.videos?.[currentIndex]
       // ユーザーが開始（最初のビデオは手動再生）、その後の動画は自動再生
-      const shouldAutoplay = currentIndex > 0 ? 1 : 0
+      const shouldAutoplay = userInitiatedPlayback ? 1 : 0
       
-      // 完了済みの動画は最初から再生、未完了の動画は前回の位置から再生
-      const startTime = currentVideo?.completed ? undefined : Math.floor(currentVideo?.total_watch_time || 0)
-      
-      const playerVars: YTPlayerVars = {
-        autoplay: shouldAutoplay,
-        modestbranding: 1,
-        rel: 0,
+      // 完了済みの動画は最初から再生
+      if (currentVideo?.completed) {
+        const playerVars: YTPlayerVars = {
+          autoplay: shouldAutoplay,
+          modestbranding: 1,
+          rel: 0,
+        }
+        playerRef.current = new window.YT.Player('youtube-player', {
+          videoId: currentVideo?.id,
+          playerVars: playerVars,
+          events: {
+            onStateChange: handleStateChange,
+          },
+        })
+        return
       }
       
-      // startが0の場合や定義されていない場合は、playerVarsに含めない
-      if (startTime !== undefined && startTime > 0) {
-        (playerVars as any).start = startTime
+      // 未完了で視聴位置がある場合はダイアログを表示
+      const watchTime = Math.floor(currentVideo?.total_watch_time || 0)
+      if (watchTime > 0) {
+        pendingStartTimeRef.current = watchTime
+        // ダイアログを表示する前に、プレイヤーを初期化（自動再生は無効）
+        const playerVars: YTPlayerVars = {
+          autoplay: 0,
+          modestbranding: 1,
+          rel: 0,
+        }
+        playerRef.current = new window.YT.Player('youtube-player', {
+          videoId: currentVideo?.id,
+          playerVars: playerVars,
+          events: {
+            onStateChange: handleStateChange,
+          },
+        })
+        // その後、ダイアログを表示
+        setResumeDialog({ show: true, startTime: watchTime })
+      } else {
+        // 視聴位置がない場合は通常再生
+        const playerVars: YTPlayerVars = {
+          autoplay: shouldAutoplay,
+          modestbranding: 1,
+          rel: 0,
+        }
+        playerRef.current = new window.YT.Player('youtube-player', {
+          videoId: currentVideo?.id,
+          playerVars: playerVars,
+          events: {
+            onStateChange: handleStateChange,
+          },
+        })
       }
-      
-      playerRef.current = new window.YT.Player('youtube-player', {
-        videoId: currentVideo?.id,
-        playerVars: playerVars,
-        events: {
-          onStateChange: handleStateChange,
-        },
-      })
     }
 
     // Small delay to ensure container is ready
     const timer = setTimeout(initPlayer, 100)
     return () => clearTimeout(timer)
   }, [playerReady, playlist, currentIndex])
+  
+  // Handle resume dialog choice
+  const handleResumeChoice = useCallback((fromBeginning: boolean) => {
+    if (!playerRef.current) return
+
+    // ダイアログで選択されたら、再生位置を変更
+    const startTime = fromBeginning ? 0 : (pendingStartTimeRef.current || 0)
+    
+    if (startTime > 0) {
+      playerRef.current.seekTo(startTime, true)
+    }
+    
+    // 再生開始
+    playerRef.current.playVideo()
+
+    setResumeDialog({ show: false, startTime: null })
+    pendingStartTimeRef.current = null
+  }, [])
 
   const handleStateChange = useCallback(
     (event: YTPlayerEvent) => {
@@ -187,6 +240,9 @@ export default function YouTubePlayer() {
 
       // Track watch time periodically when playing
       if (event.data === window.YT.PlayerState.PLAYING) {
+        // ユーザーが再生を開始したことを記録
+        setUserInitiatedPlayback(true)
+
         const trackProgress = setInterval(() => {
           if (playerRef.current) {
             const currentTime = playerRef.current.getCurrentTime()
@@ -217,8 +273,10 @@ export default function YouTubePlayer() {
           }
         })
 
-        // Auto-advance to next video
+        // Auto-advance to next video - 自動再生トリガーはここのみ
         if (playlist?.videos && currentIndex < playlist.videos.length - 1) {
+          // 自動で次の動画に進む時のみ自動再生フラグを設定
+          setUserInitiatedPlayback(true)
           setTimeout(() => setCurrentIndex(currentIndex + 1), 2000)
         }
       }
@@ -227,6 +285,9 @@ export default function YouTubePlayer() {
   )
 
   const playVideo = (index: number) => {
+    // ユーザーが手動で動画を選択した場合、自動再生フラグをリセット
+    // 選択された動画が実際に再生される時に再度設定される
+    setUserInitiatedPlayback(false)
     setCurrentIndex(index)
   }
 
@@ -238,6 +299,8 @@ export default function YouTubePlayer() {
 
   const prevVideo = () => {
     if (currentIndex > 0) {
+      // ユーザーが手動で動画を選択した場合、自動再生フラグをリセット
+      setUserInitiatedPlayback(false)
       setCurrentIndex(currentIndex - 1)
     }
   }
@@ -266,6 +329,39 @@ export default function YouTubePlayer() {
   return (
     <div className="flex flex-col bg-gray-50">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* Resume Dialog */}
+      {resumeDialog.show && (
+        <div className="fixed inset-0 backdrop-blur flex items-center justify-center z-50 px-4 pointer-events-auto">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg pointer-events-auto">
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800">前回の位置 {Math.floor((resumeDialog.startTime || 0) / 60)}:{String(Math.floor((resumeDialog.startTime || 0) % 60)).padStart(2, '0')} から再開しますか？</h2>
+              <button
+                onClick={() => setResumeDialog({ show: false, startTime: null })}
+                className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => handleResumeChoice(true)}
+                className="px-6 py-2 rounded-lg bg-gray-300 text-gray-900 hover:bg-gray-400 transition-colors font-bold border border-gray-400"
+              >
+                いいえ
+              </button>
+              <button
+                onClick={() => handleResumeChoice(false)}
+                className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-bold border border-blue-700"
+              >
+                はい
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header - Fixed */}
       <div className="sticky top-0 z-10 flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 bg-white border-b border-gray-200">
