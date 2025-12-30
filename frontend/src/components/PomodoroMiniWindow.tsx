@@ -11,6 +11,7 @@ import {
   GripHorizontal,
   Flame,
   Coffee,
+  ChevronUp,
 } from 'lucide-react'
 import { usePomodoroContext } from '../contexts/PomodoroContext'
 
@@ -55,6 +56,241 @@ const getSnappedPosition = (x: number, y: number, width: number, height: number)
   
   // Always snap to the nearest corner
   return closest.point
+}
+
+// === Mobile Bottom Bar Component ===
+function MobileBottomBar() {
+  const {
+    mode,
+    timeLeft,
+    isRunning,
+    showMiniWindow,
+    setShowMiniWindow,
+    toggleTimer,
+    resetTimer,
+    formatTime,
+    progressPercent,
+    completedSessions,
+    todaySessions,
+  } = usePomodoroContext()
+
+  const navigate = useNavigate()
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  const modeIcon = useMemo(() => {
+    switch (mode) {
+      case 'work':
+        return <Flame className="w-4 h-4" />
+      case 'shortBreak':
+      case 'longBreak':
+        return <Coffee className="w-4 h-4" />
+    }
+  }, [mode])
+
+  const modeLabel = useMemo(() => {
+    switch (mode) {
+      case 'work':
+        return '作業中'
+      case 'shortBreak':
+        return '短休憩'
+      case 'longBreak':
+        return '長休憩'
+    }
+  }, [mode])
+
+  const modeBgClass = useMemo(() => {
+    switch (mode) {
+      case 'work':
+        return 'bg-gradient-to-br from-red-500 to-orange-500'
+      case 'shortBreak':
+        return 'bg-gradient-to-br from-green-500 to-teal-500'
+      case 'longBreak':
+        return 'bg-gradient-to-br from-blue-500 to-purple-500'
+    }
+  }, [mode])
+
+  const handleNavigateToPomodoro = useCallback(() => {
+    navigate('/pomodoro')
+    setIsExpanded(false)
+  }, [navigate])
+
+  if (!showMiniWindow) {
+    return null
+  }
+
+  // === Collapsed Bottom Bar ===
+  if (!isExpanded) {
+    return (
+      <div className={`fixed bottom-0 left-0 right-0 z-[100] ${modeBgClass} text-white md:hidden`}>
+        {/* Progress Bar */}
+        <div className="h-1 bg-white/20">
+          <div
+            className="h-full bg-white/40 transition-all duration-1000"
+            style={{ width: `${progressPercent()}%` }}
+          />
+        </div>
+
+        {/* Collapsed Content */}
+        <div
+          onClick={() => setIsExpanded(true)}
+          className="flex items-center justify-between px-4 py-3 cursor-pointer active:bg-white/10 transition-colors"
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {modeIcon}
+              <span className="text-xs font-semibold">{modeLabel}</span>
+            </div>
+            <span className="font-mono font-bold text-lg">{formatTime(timeLeft)}</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleTimer()
+              }}
+              className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
+              title={isRunning ? '停止' : '開始'}
+            >
+              {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+            <ChevronUp className="w-4 h-4 flex-shrink-0" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // === Expanded Bottom Sheet ===
+  return (
+    <div className="fixed bottom-0 left-0 right-0 top-0 z-[100] bg-black/50 md:hidden overflow-y-auto" onClick={() => setIsExpanded(false)}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`${modeBgClass} text-white rounded-t-2xl mt-auto shadow-2xl animate-in slide-in-from-bottom-5 duration-300`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <span className="font-semibold text-base">ポモドーロ</span>
+          <button
+            onClick={() => setIsExpanded(false)}
+            className="p-1 rounded-full hover:bg-white/20 transition-colors"
+          >
+            <ChevronUp className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="px-4 py-4">
+          {/* Mode Indicator */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 ${
+                mode === 'work'
+                  ? 'bg-red-100 text-red-700'
+                  : mode === 'shortBreak'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-blue-100 text-blue-700'
+              }`}
+            >
+              {modeIcon}
+              <span>{modeLabel}</span>
+            </span>
+          </div>
+
+          {/* Timer Display */}
+          <div className="relative w-24 h-24 mx-auto mb-4">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle
+                cx="48"
+                cy="48"
+                r="44"
+                stroke="currentColor"
+                strokeWidth="4"
+                fill="none"
+                className="text-white/20"
+              />
+              <circle
+                cx="48"
+                cy="48"
+                r="44"
+                stroke="url(#mobile-gradient)"
+                strokeWidth="4"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 44}
+                strokeDashoffset={2 * Math.PI * 44 * (1 - progressPercent() / 100)}
+                className="transition-all duration-1000"
+              />
+              <defs>
+                <linearGradient id="mobile-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop
+                    offset="0%"
+                    stopColor={mode === 'work' ? '#fef3c7' : mode === 'shortBreak' ? '#dcfce7' : '#dbeafe'}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor={mode === 'work' ? '#fef3c7' : mode === 'shortBreak' ? '#dcfce7' : '#dbeafe'}
+                  />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl font-bold font-mono">{formatTime(timeLeft)}</span>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex justify-center gap-2 mb-4">
+            <button
+              onClick={resetTimer}
+              className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+              title="リセット"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+            <button
+              onClick={toggleTimer}
+              className="px-6 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex items-center gap-2 font-semibold flex-1 justify-center"
+            >
+              {isRunning ? (
+                <>
+                  <Pause className="w-5 h-5" />
+                  <span>停止</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5" />
+                  <span>開始</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Stats */}
+          <div className="flex justify-between text-sm font-semibold mb-4 bg-white/10 rounded-lg px-3 py-2">
+            <span>連続: {completedSessions}回</span>
+            <span>今日: {todaySessions}回</span>
+          </div>
+
+          {/* Navigation Button */}
+          <button
+            onClick={handleNavigateToPomodoro}
+            className="w-full py-2 text-base text-gray-800 bg-white hover:bg-gray-100 rounded-lg transition-colors font-semibold mb-2"
+          >
+            フルページで開く
+          </button>
+
+          {/* Close Button */}
+          <button
+            onClick={() => setShowMiniWindow(false)}
+            className="w-full py-2 text-base text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PomodoroMiniWindow() {
@@ -327,6 +563,13 @@ function PomodoroMiniWindow() {
 
   // === Check if on Pomodoro Page - AFTER all hooks ===
   const isOnPomodoroPage = location.pathname === '/pomodoro'
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  
+  // === Render Mobile Version ===
+  if (isMobile) {
+    return <MobileBottomBar />
+  }
+  
   if (isOnPomodoroPage || !showMiniWindow) {
     return null
   }
